@@ -13,6 +13,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -23,7 +24,6 @@ import {
   Image,
   File,
   MoreVertical,
-  Copy,
   Trash2,
   LogOut,
   Users,
@@ -33,12 +33,17 @@ import {
   PhoneOff,
   Download,
   X,
+  Copy,
+  Check,
 } from "lucide-react";
 import type { Profile } from "@/lib/supabase";
 import type { ConversationWithDetails } from "@/hooks/useConversations";
 import type { MessageWithSender } from "@/hooks/useMessages";
 import { useToast } from "@/hooks/use-toast";
-import { format, isToday, isYesterday } from "date-fns";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { TypingIndicator } from "@/components/chat/TypingIndicator";
+import { OnlineStatus } from "@/components/chat/OnlineStatus";
+import { format, isToday, isYesterday, isSameDay } from "date-fns";
 
 interface ChatAreaProps {
   conversation: ConversationWithDetails;
@@ -75,15 +80,29 @@ export function ChatArea({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  const { typingUsers, sendTyping, stopTyping } = useTypingIndicator(
+    conversation.id,
+    profile.user_id,
+    profile.display_name || profile.email.split("@")[0]
+  );
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+  }, [messages, typingUsers]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessage(e.target.value);
+    if (e.target.value.trim()) {
+      sendTyping();
+    }
+  };
 
   const handleSend = async () => {
     if (!message.trim() || sending) return;
     setSending(true);
+    stopTyping();
     try {
       await onSendMessage(message.trim());
       setMessage("");
@@ -119,61 +138,108 @@ export function ChatArea({
     toast({ title: "Copied!", description: "Invite code copied to clipboard" });
   };
 
-  const formatMessageDate = (dateStr: string) => {
+  const formatMessageTime = (dateStr: string) => {
+    return format(new Date(dateStr), "h:mm a");
+  };
+
+  const formatDateHeader = (dateStr: string) => {
     const date = new Date(dateStr);
-    if (isToday(date)) return format(date, "h:mm a");
-    if (isYesterday(date)) return `Yesterday ${format(date, "h:mm a")}`;
-    return format(date, "MMM d, h:mm a");
+    if (isToday(date)) return "Today";
+    if (isYesterday(date)) return "Yesterday";
+    return format(date, "MMMM d, yyyy");
+  };
+
+  const getOtherUser = () => {
+    if (conversation.is_group || conversation.is_channel) return null;
+    return conversation.members.find((m) => m.user_id !== profile.user_id);
   };
 
   const getConversationTitle = () => {
     if (conversation.is_group || conversation.is_channel) return conversation.name || "Unnamed";
-    const other = conversation.members.find((m) => m.user_id !== profile.user_id);
-    return other?.profile?.display_name || other?.profile?.email || "Unknown";
+    const other = getOtherUser();
+    return other?.profile?.display_name || other?.profile?.email?.split("@")[0] || "Chat";
   };
 
   const getOtherUserAvatar = () => {
     if (conversation.avatar_url) return conversation.avatar_url;
-    if (!conversation.is_group && !conversation.is_channel) {
-      const other = conversation.members.find((m) => m.user_id !== profile.user_id);
-      return other?.profile?.avatar_url;
-    }
-    return null;
+    const other = getOtherUser();
+    return other?.profile?.avatar_url;
   };
 
-  const renderMessage = (msg: MessageWithSender) => {
+  const getInitials = (name: string) => {
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  const getSenderName = (sender: Profile | null | undefined) => {
+    if (!sender) return "Unknown";
+    return sender.display_name || sender.email?.split("@")[0] || "User";
+  };
+
+  // Group messages by date
+  const getMessagesWithDates = () => {
+    const result: { type: "date" | "message"; date?: string; message?: MessageWithSender }[] = [];
+    let lastDate = "";
+
+    messages.forEach((msg) => {
+      const msgDate = new Date(msg.created_at).toDateString();
+      if (msgDate !== lastDate) {
+        result.push({ type: "date", date: msg.created_at });
+        lastDate = msgDate;
+      }
+      result.push({ type: "message", message: msg });
+    });
+
+    return result;
+  };
+
+  const renderMessage = (msg: MessageWithSender, showAvatar: boolean, isFirstInGroup: boolean) => {
     const isOwn = msg.sender_id === profile.user_id;
     const showFile = msg.message_type !== "text" && msg.file_url;
+    const senderName = getSenderName(msg.sender);
 
     return (
       <div
         key={msg.id}
-        className={`flex gap-3 group animate-slide-in ${isOwn ? "flex-row-reverse" : ""}`}
+        className={`flex gap-3 group animate-fade-in ${isOwn ? "flex-row-reverse" : ""}`}
       >
         {!isOwn && (
-          <Avatar className="h-8 w-8 shrink-0">
-            <AvatarImage src={msg.sender?.avatar_url || undefined} />
-            <AvatarFallback>
-              {msg.sender?.display_name?.[0] || msg.sender?.email?.[0]?.toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <div className="w-8 shrink-0">
+            {showAvatar && (
+              <Avatar className="h-8 w-8 ring-2 ring-background shadow-md">
+                <AvatarImage src={msg.sender?.avatar_url || undefined} />
+                <AvatarFallback className="bg-secondary text-xs font-medium">
+                  {getInitials(senderName)}
+                </AvatarFallback>
+              </Avatar>
+            )}
+          </div>
         )}
 
-        <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
-          {!isOwn && (
-            <span className="text-xs text-muted-foreground mb-1">
-              {msg.sender?.display_name || msg.sender?.email}
+        <div className={`flex flex-col max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
+          {!isOwn && isFirstInGroup && (
+            <span className="text-xs font-medium text-primary mb-1 ml-1">
+              {senderName}
             </span>
           )}
 
-          <div className={isOwn ? "message-bubble-sent" : "message-bubble-received"}>
+          <div
+            className={`
+              relative px-4 py-2.5 rounded-2xl shadow-sm transition-all duration-200
+              ${isOwn 
+                ? "bg-primary text-primary-foreground rounded-br-md" 
+                : "bg-secondary/80 text-foreground rounded-bl-md backdrop-blur-sm"
+              }
+              hover:shadow-md
+            `}
+          >
             {showFile ? (
               <div className="space-y-2">
                 {msg.message_type === "image" && (
                   <img
                     src={msg.file_url!}
                     alt={msg.file_name || "Image"}
-                    className="max-w-xs rounded-lg"
+                    className="max-w-xs rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(msg.file_url!, "_blank")}
                   />
                 )}
                 {msg.message_type === "file" && (
@@ -181,11 +247,11 @@ export function ChatArea({
                     href={msg.file_url!}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm hover:underline"
+                    className="flex items-center gap-2 text-sm hover:underline p-2 bg-background/20 rounded-lg"
                   >
                     <File className="h-4 w-4" />
-                    {msg.file_name || "Download file"}
-                    <Download className="h-3 w-3" />
+                    <span className="truncate max-w-[150px]">{msg.file_name || "Download file"}</span>
+                    <Download className="h-3 w-3 ml-auto" />
                   </a>
                 )}
                 {msg.message_type === "video" && (
@@ -200,12 +266,12 @@ export function ChatArea({
                 )}
               </div>
             ) : (
-              <p className="text-sm">{msg.content}</p>
+              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
             )}
           </div>
 
-          <span className="text-xs text-muted-foreground mt-1">
-            {formatMessageDate(msg.created_at)}
+          <span className="text-[10px] text-muted-foreground mt-1 mx-1">
+            {formatMessageTime(msg.created_at)}
           </span>
         </div>
 
@@ -215,7 +281,7 @@ export function ChatArea({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
               >
                 <MoreVertical className="h-3 w-3" />
               </Button>
@@ -232,24 +298,41 @@ export function ChatArea({
     );
   };
 
+  const otherUser = getOtherUser();
+  const messagesWithDates = getMessagesWithDates();
+
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="h-16 px-6 flex items-center justify-between border-b border-border bg-card/50 backdrop-blur-sm">
+      <div className="h-16 px-6 flex items-center justify-between border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={getOtherUserAvatar() || undefined} />
-            <AvatarFallback>{getConversationTitle()[0]}</AvatarFallback>
-          </Avatar>
+          <div className="relative">
+            <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+              <AvatarImage src={getOtherUserAvatar() || undefined} />
+              <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                {getInitials(getConversationTitle())}
+              </AvatarFallback>
+            </Avatar>
+            {otherUser?.profile?.is_online && (
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-[hsl(var(--online))] rounded-full ring-2 ring-background" />
+            )}
+          </div>
           <div>
-            <h2 className="font-semibold">{getConversationTitle()}</h2>
-            <p className="text-xs text-muted-foreground">
-              {conversation.members.length} member{conversation.members.length !== 1 ? "s" : ""}
-            </p>
+            <h2 className="font-semibold text-foreground">{getConversationTitle()}</h2>
+            {conversation.is_group || conversation.is_channel ? (
+              <p className="text-xs text-muted-foreground">
+                {conversation.members.length} member{conversation.members.length !== 1 ? "s" : ""}
+              </p>
+            ) : otherUser?.profile ? (
+              <OnlineStatus 
+                isOnline={otherUser.profile.is_online || false} 
+                lastSeen={otherUser.profile.last_seen}
+              />
+            ) : null}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {conversation.has_audio && (
             <>
               {inAudioRoom ? (
@@ -258,6 +341,7 @@ export function ChatArea({
                     variant={isMuted ? "destructive" : "secondary"}
                     size="icon"
                     onClick={() => setIsMuted(!isMuted)}
+                    className="h-9 w-9"
                   >
                     {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                   </Button>
@@ -265,6 +349,7 @@ export function ChatArea({
                     variant="destructive"
                     size="icon"
                     onClick={() => setInAudioRoom(false)}
+                    className="h-9 w-9"
                   >
                     <PhoneOff className="h-4 w-4" />
                   </Button>
@@ -274,8 +359,9 @@ export function ChatArea({
                   variant="default"
                   size="sm"
                   onClick={() => setInAudioRoom(true)}
+                  className="gap-2"
                 >
-                  <Phone className="h-4 w-4 mr-2" />
+                  <Phone className="h-4 w-4" />
                   Join Voice
                 </Button>
               )}
@@ -284,30 +370,50 @@ export function ChatArea({
 
           <Dialog open={showMembers} onOpenChange={setShowMembers}>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="h-9 w-9">
                 <Users className="h-4 w-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Members ({conversation.members.length})</DialogTitle>
+                <DialogDescription>
+                  People in this conversation
+                </DialogDescription>
               </DialogHeader>
-              <div className="space-y-3">
+              <div className="space-y-2 max-h-80 overflow-y-auto">
                 {conversation.members.map((member) => (
-                  <div key={member.id} className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={member.profile?.avatar_url || undefined} />
-                      <AvatarFallback>
-                        {member.profile?.display_name?.[0] || member.profile?.email?.[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">
-                        {member.profile?.display_name || member.profile?.email}
+                  <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/50 transition-colors">
+                    <div className="relative">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={member.profile?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-secondary">
+                          {getInitials(getSenderName(member.profile))}
+                        </AvatarFallback>
+                      </Avatar>
+                      {member.profile?.is_online && (
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[hsl(var(--online))] rounded-full ring-2 ring-background" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">
+                        {getSenderName(member.profile)}
+                        {member.user_id === profile.user_id && (
+                          <span className="text-muted-foreground text-xs ml-2">(You)</span>
+                        )}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {member.role === "owner" ? "Owner" : member.role === "admin" ? "Admin" : "Member"}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-secondary rounded">
+                          {member.role}
+                        </span>
+                        {member.profile && (
+                          <OnlineStatus 
+                            isOnline={member.profile.is_online || false} 
+                            lastSeen={member.profile.last_seen}
+                            showText={!member.profile.is_online}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -317,26 +423,26 @@ export function ChatArea({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="h-9 w-9">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {(conversation.is_group || conversation.is_channel) && (
-                <DropdownMenuItem onClick={handleCopyInvite}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy invite code: {conversation.invite_code}
+                <DropdownMenuItem onClick={handleCopyInvite} className="gap-2">
+                  <Copy className="h-4 w-4" />
+                  Copy invite: {conversation.invite_code}
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onLeave} className="text-warning">
-                <LogOut className="mr-2 h-4 w-4" />
-                Leave
+              <DropdownMenuItem onClick={onLeave} className="text-warning gap-2">
+                <LogOut className="h-4 w-4" />
+                Leave conversation
               </DropdownMenuItem>
               {isOwner && (
-                <DropdownMenuItem onClick={onDelete} className="text-destructive">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                <DropdownMenuItem onClick={onDelete} className="text-destructive gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Delete conversation
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -346,7 +452,7 @@ export function ChatArea({
 
       {/* Audio Room Indicator */}
       {inAudioRoom && (
-        <div className="px-6 py-3 bg-success/10 border-b border-success/20 flex items-center justify-between">
+        <div className="px-6 py-3 bg-success/10 border-b border-success/20 flex items-center justify-between backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-3 h-3 bg-success rounded-full" />
@@ -360,7 +466,7 @@ export function ChatArea({
             variant="ghost"
             size="sm"
             onClick={() => setInAudioRoom(false)}
-            className="text-success hover:text-success"
+            className="text-success hover:text-success hover:bg-success/20"
           >
             <X className="h-4 w-4 mr-1" />
             Disconnect
@@ -369,26 +475,70 @@ export function ChatArea({
       )}
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-6 scrollbar-thin">
-        <div className="space-y-4 max-w-3xl mx-auto">
+      <ScrollArea className="flex-1 scrollbar-thin">
+        <div className="p-6 space-y-4 max-w-3xl mx-auto">
           {messagesLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+              <p className="text-sm text-muted-foreground">Loading messages...</p>
             </div>
           ) : messages.length === 0 ? (
-            <div className="text-center py-12 space-y-2">
-              <p className="text-muted-foreground">No messages yet</p>
-              <p className="text-sm text-muted-foreground">Start the conversation!</p>
+            <div className="text-center py-16 space-y-4">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                <Send className="w-8 h-8 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-lg font-medium text-foreground">No messages yet</p>
+                <p className="text-sm text-muted-foreground">
+                  Start the conversation with {getConversationTitle()}!
+                </p>
+              </div>
             </div>
           ) : (
-            messages.map(renderMessage)
+            messagesWithDates.map((item, index) => {
+              if (item.type === "date") {
+                return (
+                  <div key={`date-${item.date}`} className="flex items-center justify-center my-6">
+                    <div className="px-3 py-1 bg-secondary/50 rounded-full">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {formatDateHeader(item.date!)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
+              const msg = item.message!;
+              const prevItem = messagesWithDates[index - 1];
+              const isFirstInGroup =
+                !prevItem ||
+                prevItem.type === "date" ||
+                prevItem.message?.sender_id !== msg.sender_id;
+
+              return renderMessage(msg, isFirstInGroup, isFirstInGroup);
+            })
           )}
+
+          {/* Typing Indicator */}
+          {typingUsers.length > 0 && (
+            <div className="flex items-center gap-3 animate-fade-in">
+              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                <div className="flex gap-0.5">
+                  <span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+              <TypingIndicator users={typingUsers} />
+            </div>
+          )}
+
           <div ref={scrollRef} />
         </div>
       </ScrollArea>
 
       {/* Input */}
-      <div className="p-4 border-t border-border bg-card/50 backdrop-blur-sm">
+      <div className="p-4 border-t border-border bg-card/50 backdrop-blur-xl">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           <input
             type="file"
@@ -406,35 +556,38 @@ export function ChatArea({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
-                <Paperclip className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10 rounded-full hover:bg-secondary">
+                <Paperclip className="h-5 w-5 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
-                <Image className="mr-2 h-4 w-4" />
+            <DropdownMenuContent side="top" align="start">
+              <DropdownMenuItem onClick={() => imageInputRef.current?.click()} className="gap-2">
+                <Image className="h-4 w-4" />
                 Image / Video
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                <File className="mr-2 h-4 w-4" />
+              <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2">
+                <File className="h-4 w-4" />
                 File
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Input
-            placeholder="Type a message..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            className="flex-1 bg-input border-border"
-          />
+          <div className="flex-1 relative">
+            <Input
+              placeholder={`Message ${getConversationTitle()}...`}
+              value={message}
+              onChange={handleInputChange}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+              onBlur={stopTyping}
+              className="h-11 pr-12 bg-secondary/50 border-border/50 rounded-full focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
 
           <Button
             onClick={handleSend}
             disabled={!message.trim() || sending}
             size="icon"
-            className="shrink-0"
+            className="shrink-0 h-10 w-10 rounded-full shadow-lg"
           >
             <Send className="h-5 w-5" />
           </Button>
