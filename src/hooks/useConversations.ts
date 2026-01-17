@@ -43,14 +43,28 @@ export function useConversations(userId: string | undefined) {
 
       const conversationsWithDetails: ConversationWithDetails[] = await Promise.all(
         (convData || []).map(async (conv) => {
+          // Get members
           const { data: members } = await supabase
             .from("conversation_members")
-            .select("*, profiles(*)")
+            .select("*")
             .eq("conversation_id", conv.id);
+
+          // Get user_ids from members
+          const userIds = (members || []).map((m) => m.user_id);
+          
+          // Fetch profiles separately
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("*")
+            .in("user_id", userIds);
+
+          const profilesMap = new Map(
+            (profiles || []).map((p) => [p.user_id, p as Profile])
+          );
 
           const formattedMembers = (members || []).map((m: any) => ({
             ...m,
-            profile: m.profiles as Profile,
+            profile: profilesMap.get(m.user_id) || null,
           }));
 
           return {

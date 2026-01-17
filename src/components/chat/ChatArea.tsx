@@ -19,6 +19,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Send,
   Paperclip,
   Image,
@@ -34,16 +40,18 @@ import {
   Download,
   X,
   Copy,
-  Check,
+  Zap,
+  ZapOff,
 } from "lucide-react";
 import type { Profile } from "@/lib/supabase";
 import type { ConversationWithDetails } from "@/hooks/useConversations";
 import type { MessageWithSender } from "@/hooks/useMessages";
 import { useToast } from "@/hooks/use-toast";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { useFlashChat } from "@/hooks/useFlashChat";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { OnlineStatus } from "@/components/chat/OnlineStatus";
-import { format, isToday, isYesterday, isSameDay } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 
 interface ChatAreaProps {
   conversation: ConversationWithDetails;
@@ -75,6 +83,7 @@ export function ChatArea({
   const [showMembers, setShowMembers] = useState(false);
   const [inAudioRoom, setInAudioRoom] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isFlashMode, setIsFlashMode] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -86,11 +95,23 @@ export function ChatArea({
     profile.display_name || profile.email.split("@")[0]
   );
 
+  const { flashMessages, sendFlashMessage, clearFlashMessages } = useFlashChat(
+    conversation.id,
+    profile.user_id,
+    profile,
+    isFlashMode
+  );
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, typingUsers]);
+  }, [messages, typingUsers, flashMessages]);
+
+  // Clear flash messages when switching conversations
+  useEffect(() => {
+    clearFlashMessages();
+  }, [conversation.id, clearFlashMessages]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessage(e.target.value);
@@ -104,7 +125,11 @@ export function ChatArea({
     setSending(true);
     stopTyping();
     try {
-      await onSendMessage(message.trim());
+      if (isFlashMode) {
+        await sendFlashMessage(message.trim());
+      } else {
+        await onSendMessage(message.trim());
+      }
       setMessage("");
     } catch (error: any) {
       toast({
@@ -332,7 +357,26 @@ export function ChatArea({
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {/* Flash Mode Toggle */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={isFlashMode ? "default" : "ghost"}
+                  size="icon"
+                  onClick={() => setIsFlashMode(!isFlashMode)}
+                  className={`h-9 w-9 ${isFlashMode ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
+                >
+                  {isFlashMode ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isFlashMode ? "Flash Mode ON - Messages won't be saved" : "Enable Flash Mode"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           {conversation.has_audio && (
             <>
               {inAudioRoom ? (
@@ -474,49 +518,147 @@ export function ChatArea({
         </div>
       )}
 
+      {/* Flash Mode Indicator */}
+      {isFlashMode && (
+        <div className="px-6 py-2 bg-warning/10 border-b border-warning/20 flex items-center justify-between backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Zap className="w-4 h-4 text-warning" />
+            </div>
+            <span className="text-sm text-warning font-medium">
+              Flash Mode Active — Messages won't be saved
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsFlashMode(false)}
+            className="text-warning hover:text-warning hover:bg-warning/20"
+          >
+            <X className="h-4 w-4 mr-1" />
+            Disable
+          </Button>
+        </div>
+      )}
+
       {/* Messages */}
       <ScrollArea className="flex-1 scrollbar-thin">
         <div className="p-6 space-y-4 max-w-3xl mx-auto">
-          {messagesLoading ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
-              <p className="text-sm text-muted-foreground">Loading messages...</p>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="text-center py-16 space-y-4">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                <Send className="w-8 h-8 text-primary" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-lg font-medium text-foreground">No messages yet</p>
-                <p className="text-sm text-muted-foreground">
-                  Start the conversation with {getConversationTitle()}!
-                </p>
-              </div>
-            </div>
-          ) : (
-            messagesWithDates.map((item, index) => {
-              if (item.type === "date") {
-                return (
-                  <div key={`date-${item.date}`} className="flex items-center justify-center my-6">
-                    <div className="px-3 py-1 bg-secondary/50 rounded-full">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {formatDateHeader(item.date!)}
-                      </span>
-                    </div>
+          {isFlashMode ? (
+            // Flash Mode Messages
+            <>
+              {flashMessages.length === 0 ? (
+                <div className="text-center py-16 space-y-4">
+                  <div className="w-16 h-16 bg-warning/10 rounded-full flex items-center justify-center mx-auto">
+                    <Zap className="w-8 h-8 text-warning" />
                   </div>
-                );
-              }
+                  <div className="space-y-1">
+                    <p className="text-lg font-medium text-foreground">Flash Chat</p>
+                    <p className="text-sm text-muted-foreground">
+                      Messages here are ephemeral and won't be saved
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                flashMessages.map((msg, index) => {
+                  const isOwn = msg.sender_id === profile.user_id;
+                  const prevMsg = flashMessages[index - 1];
+                  const isFirstInGroup = !prevMsg || prevMsg.sender_id !== msg.sender_id;
+                  const senderName = msg.sender?.display_name || msg.sender?.email?.split("@")[0] || "User";
 
-              const msg = item.message!;
-              const prevItem = messagesWithDates[index - 1];
-              const isFirstInGroup =
-                !prevItem ||
-                prevItem.type === "date" ||
-                prevItem.message?.sender_id !== msg.sender_id;
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex gap-3 group animate-fade-in ${isOwn ? "flex-row-reverse" : ""}`}
+                    >
+                      {!isOwn && (
+                        <div className="w-8 shrink-0">
+                          {isFirstInGroup && (
+                            <Avatar className="h-8 w-8 ring-2 ring-warning/30 shadow-md">
+                              <AvatarImage src={msg.sender?.avatar_url || undefined} />
+                              <AvatarFallback className="bg-warning/10 text-xs font-medium">
+                                {senderName.substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                        </div>
+                      )}
 
-              return renderMessage(msg, isFirstInGroup, isFirstInGroup);
-            })
+                      <div className={`flex flex-col max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
+                        {!isOwn && isFirstInGroup && (
+                          <span className="text-xs font-medium text-warning mb-1 ml-1">
+                            {senderName}
+                          </span>
+                        )}
+
+                        <div
+                          className={`
+                            relative px-4 py-2.5 rounded-2xl shadow-sm transition-all duration-200
+                            ${isOwn 
+                              ? "bg-warning text-warning-foreground rounded-br-md" 
+                              : "bg-warning/20 text-foreground rounded-bl-md backdrop-blur-sm border border-warning/30"
+                            }
+                            hover:shadow-md
+                          `}
+                        >
+                          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
+                        </div>
+
+                        <span className="text-[10px] text-muted-foreground mt-1 mx-1 flex items-center gap-1">
+                          <Zap className="w-2.5 h-2.5 text-warning" />
+                          {format(new Date(msg.created_at), "h:mm a")}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </>
+          ) : (
+            // Normal Mode Messages
+            <>
+              {messagesLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+                  <p className="text-sm text-muted-foreground">Loading messages...</p>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="text-center py-16 space-y-4">
+                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                    <Send className="w-8 h-8 text-primary" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-lg font-medium text-foreground">No messages yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      Start the conversation with {getConversationTitle()}!
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                messagesWithDates.map((item, index) => {
+                  if (item.type === "date") {
+                    return (
+                      <div key={`date-${item.date}`} className="flex items-center justify-center my-6">
+                        <div className="px-3 py-1 bg-secondary/50 rounded-full">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {formatDateHeader(item.date!)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const msg = item.message!;
+                  const prevItem = messagesWithDates[index - 1];
+                  const isFirstInGroup =
+                    !prevItem ||
+                    prevItem.type === "date" ||
+                    prevItem.message?.sender_id !== msg.sender_id;
+
+                  return renderMessage(msg, isFirstInGroup, isFirstInGroup);
+                })
+              )}
+            </>
           )}
 
           {/* Typing Indicator */}
@@ -538,48 +680,62 @@ export function ChatArea({
       </ScrollArea>
 
       {/* Input */}
-      <div className="p-4 border-t border-border bg-card/50 backdrop-blur-xl">
+      <div className={`p-4 border-t backdrop-blur-xl ${isFlashMode ? "border-warning/20 bg-warning/5" : "border-border bg-card/50"}`}>
         <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={(e) => handleFileSelect(e, "file")}
-            className="hidden"
-          />
-          <input
-            type="file"
-            ref={imageInputRef}
-            accept="image/*,video/*"
-            onChange={(e) => handleFileSelect(e, "image")}
-            className="hidden"
-          />
+          {!isFlashMode && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={(e) => handleFileSelect(e, "file")}
+                className="hidden"
+              />
+              <input
+                type="file"
+                ref={imageInputRef}
+                accept="image/*,video/*"
+                onChange={(e) => handleFileSelect(e, "image")}
+                className="hidden"
+              />
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10 rounded-full hover:bg-secondary">
-                <Paperclip className="h-5 w-5 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start">
-              <DropdownMenuItem onClick={() => imageInputRef.current?.click()} className="gap-2">
-                <Image className="h-4 w-4" />
-                Image / Video
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2">
-                <File className="h-4 w-4" />
-                File
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10 rounded-full hover:bg-secondary">
+                    <Paperclip className="h-5 w-5 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start">
+                  <DropdownMenuItem onClick={() => imageInputRef.current?.click()} className="gap-2">
+                    <Image className="h-4 w-4" />
+                    Image / Video
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2">
+                    <File className="h-4 w-4" />
+                    File
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+
+          {isFlashMode && (
+            <div className="shrink-0 h-10 w-10 rounded-full bg-warning/20 flex items-center justify-center">
+              <Zap className="h-5 w-5 text-warning" />
+            </div>
+          )}
 
           <div className="flex-1 relative">
             <Input
-              placeholder={`Message ${getConversationTitle()}...`}
+              placeholder={isFlashMode ? "Flash message (won't be saved)..." : `Message ${getConversationTitle()}...`}
               value={message}
               onChange={handleInputChange}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
               onBlur={stopTyping}
-              className="h-11 pr-12 bg-secondary/50 border-border/50 rounded-full focus:ring-2 focus:ring-primary/20"
+              className={`h-11 pr-12 rounded-full focus:ring-2 ${
+                isFlashMode 
+                  ? "bg-warning/10 border-warning/30 focus:ring-warning/20" 
+                  : "bg-secondary/50 border-border/50 focus:ring-primary/20"
+              }`}
             />
           </div>
 
@@ -587,7 +743,7 @@ export function ChatArea({
             onClick={handleSend}
             disabled={!message.trim() || sending}
             size="icon"
-            className="shrink-0 h-10 w-10 rounded-full shadow-lg"
+            className={`shrink-0 h-10 w-10 rounded-full shadow-lg ${isFlashMode ? "bg-warning hover:bg-warning/90" : ""}`}
           >
             <Send className="h-5 w-5" />
           </Button>
