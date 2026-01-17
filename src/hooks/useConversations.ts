@@ -241,29 +241,31 @@ export function useConversations(userId: string | undefined) {
   const joinByCode = async (code: string) => {
     if (!userId) throw new Error("Not authenticated");
 
+    const { data: result, error: rpcError } = await supabase.rpc('join_group_by_code', {
+      invite_code_input: code.toUpperCase()
+    });
+
+    if (rpcError) {
+      console.error("RPC Error joining group:", rpcError);
+      throw rpcError;
+    }
+
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
     const { data: conv, error: convError } = await supabase
       .from("conversations")
       .select("*")
-      .eq("invite_code", code.toUpperCase())
+      .eq("id", result.conversation_id)
       .single();
-
+    
     if (convError || !conv) {
-      throw new Error("Invalid invite code");
-    }
-
-    const { error: memberError } = await supabase
-      .from("conversation_members")
-      .insert({
-        conversation_id: conv.id,
-        user_id: userId,
-        role: "member",
-      });
-
-    if (memberError) {
-      if (memberError.code === "23505") {
-        throw new Error("You are already a member");
-      }
-      throw memberError;
+      console.error("Error fetching joined conversation:", convError);
+      // Wait a moment and try again, might be replication lag or RLS catch-up
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      fetchConversations();
+      return { id: result.conversation_id } as ConversationWithDetails; // Return partial if fetch fails
     }
 
     fetchConversations();
