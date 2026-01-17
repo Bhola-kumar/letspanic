@@ -9,48 +9,101 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const markPresence = async (userId: string, isOnline: boolean) => {
+    // Best-effort (don't block UI)
+    await supabase
+      .from("profiles")
+      .update({
+        is_online: isOnline,
+        last_seen: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user) {
-          setTimeout(async () => {
-            const { data } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("user_id", session.user.id)
-              .single();
-            setProfile(data as Profile | null);
-          }, 0);
+          // Refresh profile
+          const { data } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .single();
+          setProfile(data as Profile | null);
+
+          // Mark online
+          void markPresence(session.user.id, true);
         } else {
           setProfile(null);
         }
+
         setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+
       if (session?.user) {
-        supabase
+        const { data } = await supabase
           .from("profiles")
           .select("*")
           .eq("user_id", session.user.id)
-          .single()
-          .then(({ data }) => {
-            setProfile(data as Profile | null);
-            setLoading(false);
-          });
-      } else {
-        setLoading(false);
+          .single();
+        setProfile(data as Profile | null);
+
+        // Mark online
+        void markPresence(session.user.id, true);
       }
+
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep presence fresh + mark offline when tab hidden
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const userId = user.id;
+
+    const keepAlive = () => {
+      void markPresence(userId, true);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        void markPresence(userId, false);
+      } else {
+        keepAlive();
+      }
+    };
+
+    const onBeforeUnload = () => {
+      void markPresence(userId, false);
+    };
+
+    keepAlive();
+    const interval = window.setInterval(keepAlive, 30_000);
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("beforeunload", onBeforeUnload);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      void markPresence(userId, false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -63,6 +116,9 @@ export function useAuth() {
   };
 
   const signOut = async () => {
+    if (user?.id) {
+      void markPresence(user.id, false);
+    }
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
