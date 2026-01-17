@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public.conversations (
   is_group BOOLEAN DEFAULT false,
   is_channel BOOLEAN DEFAULT false,
   invite_code TEXT UNIQUE DEFAULT upper(substring(md5(random()::text) from 1 for 8)),
-  owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  owner_id UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
   avatar_url TEXT,
   has_audio BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS public.conversations (
 CREATE TABLE IF NOT EXISTS public.conversation_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
   role TEXT DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
   joined_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   UNIQUE(conversation_id, user_id)
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS public.conversation_members (
 CREATE TABLE IF NOT EXISTS public.messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-  sender_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
   content TEXT,
   message_type TEXT DEFAULT 'text' CHECK (message_type IN ('text', 'image', 'file', 'audio', 'video', 'system')),
   file_url TEXT,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.messages (
 CREATE TABLE IF NOT EXISTS public.audio_participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
   is_muted BOOLEAN DEFAULT false,
   joined_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   UNIQUE(conversation_id, user_id)

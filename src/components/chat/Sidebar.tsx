@@ -148,7 +148,7 @@ export function Sidebar({
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
               <MessageCircle className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-display font-semibold text-lg">ConnectChat</span>
+            <span className="font-display font-semibold text-lg">Lets Panic</span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -377,7 +377,7 @@ export function Sidebar({
                   <DialogHeader>
                     <DialogTitle>Create a channel</DialogTitle>
                     <DialogDescription>
-                      Create a text or voice channel for your community
+                      Create a voice channel for your community
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 pt-4">
@@ -386,25 +386,14 @@ export function Sidebar({
                       value={newChannelName}
                       onChange={(e) => setNewChannelName(e.target.value)}
                     />
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => handleAction(() => onCreateChannel(newChannelName, false))}
-                        disabled={!newChannelName || loading}
-                        className="flex-1"
-                        variant="outline"
-                      >
-                        <Hash className="h-4 w-4 mr-2" />
-                        Text
-                      </Button>
-                      <Button
-                        onClick={() => handleAction(() => onCreateChannel(newChannelName, true))}
-                        disabled={!newChannelName || loading}
-                        className="flex-1"
-                      >
-                        <Mic className="h-4 w-4 mr-2" />
-                        Voice
-                      </Button>
-                    </div>
+                    <Button
+                      onClick={() => handleAction(() => onCreateChannel(newChannelName, true))}
+                      disabled={!newChannelName || loading}
+                      className="w-full"
+                    >
+                      <Mic className="h-4 w-4 mr-2" />
+                      Create Audio Channel
+                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>

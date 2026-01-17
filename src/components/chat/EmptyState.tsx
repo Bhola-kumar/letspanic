@@ -9,7 +9,7 @@ export function EmptyState() {
         </div>
         
         <div className="space-y-2">
-          <h2 className="text-2xl font-display font-bold">Welcome to ConnectChat</h2>
+          <h2 className="text-2xl font-display font-bold">Welcome to Lets Panic</h2>
           <p className="text-muted-foreground">
             Select a conversation or start a new one to begin messaging
           </p>

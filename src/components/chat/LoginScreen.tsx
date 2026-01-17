@@ -16,7 +16,7 @@ export function LoginScreen({ onGoogleLogin, loading }: LoginScreenProps) {
             <MessageCircle className="w-10 h-10 text-primary" />
           </div>
           <h1 className="text-4xl font-display font-bold text-foreground">
-            ConnectChat
+            Lets Panic
           </h1>
           <p className="text-muted-foreground text-lg">
             Real-time messaging, channels & voice rooms

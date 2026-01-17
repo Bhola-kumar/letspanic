@@ -49,6 +49,9 @@ import type { MessageWithSender } from "@/hooks/useMessages";
 import { useToast } from "@/hooks/use-toast";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useFlashChat } from "@/hooks/useFlashChat";
+import { useVoiceRoom } from "@/hooks/useVoiceRoom";
+import { useTranscription } from "@/hooks/useTranscription";
+import { ParticipantAudio } from "@/components/chat/ParticipantAudio";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { OnlineStatus } from "@/components/chat/OnlineStatus";
 import { format, isToday, isYesterday } from "date-fns";
@@ -81,9 +84,17 @@ export function ChatArea({
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
-  const [inAudioRoom, setInAudioRoom] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
   const [isFlashMode, setIsFlashMode] = useState(false);
+  const { 
+    inAudioRoom, 
+    participants, 
+    isMuted, 
+    joinRoom, 
+    leaveRoom, 
+    toggleMute 
+  } = useVoiceRoom(conversation.id, profile.user_id);
+
+  const { current: liveTranscript, isFinal: liveIsFinal, supported: transcriptionSupported } = useTranscription(inAudioRoom);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -108,6 +119,32 @@ export function ChatArea({
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, typingUsers, flashMessages]);
+
+  // Microphone device selection for joining voice
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [selectedInput, setSelectedInput] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter(d => d.kind === "audioinput");
+        if (!mounted) return;
+        setAudioInputs(inputs);
+        if (inputs.length && !selectedInput) setSelectedInput(inputs[0].deviceId);
+      } catch (e) {
+        console.warn("Could not enumerate media devices:", e);
+      }
+    };
+    loadDevices();
+    const onChange = () => loadDevices();
+    navigator.mediaDevices.addEventListener("devicechange", onChange);
+    return () => {
+      mounted = false;
+      navigator.mediaDevices.removeEventListener("devicechange", onChange);
+    };
+  }, [selectedInput]);
 
   // Clear flash messages when switching conversations
   useEffect(() => {
@@ -390,7 +427,7 @@ export function ChatArea({
                   <Button
                     variant={isMuted ? "destructive" : "secondary"}
                     size="icon"
-                    onClick={() => setIsMuted(!isMuted)}
+                    onClick={toggleMute}
                     className="h-9 w-9"
                   >
                     {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -398,7 +435,7 @@ export function ChatArea({
                   <Button
                     variant="destructive"
                     size="icon"
-                    onClick={() => setInAudioRoom(false)}
+                    onClick={leaveRoom}
                     className="h-9 w-9"
                   >
                     <PhoneOff className="h-4 w-4" />
@@ -408,7 +445,7 @@ export function ChatArea({
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => setInAudioRoom(true)}
+                  onClick={() => joinRoom(selectedInput || undefined)}
                   className="gap-2"
                 >
                   <Phone className="h-4 w-4" />
@@ -512,15 +549,36 @@ export function ChatArea({
               Connected to voice channel
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setInAudioRoom(false)}
-            className="text-success hover:text-success hover:bg-success/20"
-          >
-            <X className="h-4 w-4 mr-1" />
-            Disconnect
-          </Button>
+          <div className="flex items-center gap-3">
+            {/* Render remote audio streams */}
+            {participants.map(p => (
+              <ParticipantAudio key={p.user_id} userId={p.user_id} stream={p.stream} />
+            ))}
+
+            {/* Audio input selector shown while in the room */}
+            {audioInputs.length > 0 && (
+              <select
+                value={selectedInput || ""}
+                onChange={(e) => setSelectedInput(e.target.value || null)}
+                className="text-sm bg-background border rounded px-2 py-1"
+              >
+                {audioInputs.map(d => (
+                  <option key={d.deviceId} value={d.deviceId}>{d.label || d.deviceId}</option>
+                ))}
+              </select>
+            )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={leaveRoom}
+              className="text-success hover:text-success hover:bg-success/20"
+            >
+              <X className="h-4 w-4 mr-1" />
+              Disconnect
+            </Button>
+          </div>
+
         </div>
       )}
 
@@ -686,7 +744,32 @@ export function ChatArea({
       </ScrollArea>
 
       {/* Input */}
-      <div className={`p-4 border-t backdrop-blur-xl ${isFlashMode ? "border-warning/20 bg-warning/5" : "border-border bg-card/50"}`}>
+      <div className={`relative p-4 border-t backdrop-blur-xl ${isFlashMode ? "border-warning/20 bg-warning/5" : "border-border bg-card/50"}`}>
+        {/* Live Transcript Overlay */}
+        {inAudioRoom && (
+          <div className="absolute bottom-full left-0 right-0 px-4 pb-2 pointer-events-none flex justify-center">
+            <div className="bg-background/80 backdrop-blur border border-border/50 shadow-lg rounded-xl px-4 py-2 max-w-2xl w-full pointer-events-auto animate-in slide-in-from-bottom-2 fade-in">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  </span>
+                  Live Transcript
+                </span>
+              </div>
+              <div className="text-sm">
+                {!liveTranscript ? (
+                   <span className="text-muted-foreground italic">Listening for speech...</span>
+                ) : (
+                    <span className={liveIsFinal ? "text-foreground" : "text-muted-foreground"}>
+                      {liveTranscript}
+                    </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           {!isFlashMode && (
             <>
