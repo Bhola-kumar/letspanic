@@ -95,7 +95,7 @@ export function useConversations(userId: string | undefined) {
     if (!userId) return;
 
     const channel = supabase
-      .channel("conversation-and-presence-changes")
+      .channel("conversation-changes")
       .on(
         "postgres_changes",
         {
@@ -104,18 +104,6 @@ export function useConversations(userId: string | undefined) {
           table: "conversation_members",
         },
         () => {
-          fetchConversations();
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "profiles",
-        },
-        () => {
-          // refresh names / online status
           fetchConversations();
         }
       )
