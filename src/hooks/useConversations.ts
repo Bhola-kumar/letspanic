@@ -242,7 +242,7 @@ export function useConversations(userId: string | undefined) {
     if (!userId) throw new Error("Not authenticated");
 
     const { data: result, error: rpcError } = await supabase.rpc('join_group_by_code', {
-      invite_code_input: code.toUpperCase()
+      invite_code_input: code.trim().toUpperCase()
     });
 
     if (rpcError) {
