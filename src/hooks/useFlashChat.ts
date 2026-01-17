@@ -17,7 +17,8 @@ export function useFlashChat(
   conversationId: string | null,
   userId: string | undefined,
   userProfile: Profile | null,
-  enabled: boolean
+  enabled: boolean,
+  setEnabled: (enabled: boolean) => void
 ) {
   const [flashMessages, setFlashMessages] = useState<FlashMessage[]>([]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -31,7 +32,7 @@ export function useFlashChat(
 
   // Subscribe to flash chat channel for real-time ephemeral messages
   useEffect(() => {
-    if (!conversationId || !userId || !enabled) {
+    if (!conversationId || !userId) {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -48,6 +49,12 @@ export function useFlashChat(
         const msg = payload.payload as FlashMessage;
         setFlashMessages((prev) => [...prev, msg]);
       })
+      .on("broadcast", { event: "flash_mode_toggle" }, (payload) => {
+        const { enabled: newEnabled, senderId } = payload.payload;
+        if (senderId !== userId) {
+          setEnabled(newEnabled);
+        }
+      })
       .subscribe();
 
     channelRef.current = channel;
@@ -58,7 +65,7 @@ export function useFlashChat(
         channelRef.current = null;
       }
     };
-  }, [conversationId, userId, enabled]);
+  }, [conversationId, userId, setEnabled]);
 
   const sendFlashMessage = useCallback(
     async (content: string) => {
@@ -84,6 +91,20 @@ export function useFlashChat(
     [conversationId, userId, userProfile]
   );
 
+  const toggleFlashMode = useCallback(
+    async (newState: boolean) => {
+      if (!channelRef.current || !userId) return;
+      
+      setEnabled(newState);
+      await channelRef.current.send({
+        type: "broadcast",
+        event: "flash_mode_toggle",
+        payload: { enabled: newState, senderId: userId },
+      });
+    },
+    [userId, setEnabled]
+  );
+
   const clearFlashMessages = useCallback(() => {
     setFlashMessages([]);
   }, []);
@@ -91,6 +112,7 @@ export function useFlashChat(
   return {
     flashMessages,
     sendFlashMessage,
+    toggleFlashMode,
     clearFlashMessages,
   };
 }

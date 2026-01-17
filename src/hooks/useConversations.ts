@@ -18,63 +18,30 @@ export function useConversations(userId: string | undefined) {
     if (!userId) return;
     
     try {
+      setLoading(true);
+      // Fetch conversations where user is a member, including all members and their profiles
       const { data: memberData, error: memberError } = await supabase
         .from("conversation_members")
-        .select("conversation_id")
+        .select(`
+          conversation_id,
+          conversation:conversations (
+            *,
+            members:conversation_members (
+              *,
+              profile:profiles (*)
+            )
+          )
+        `)
         .eq("user_id", userId);
 
       if (memberError) throw memberError;
 
-      const conversationIds = memberData?.map((m) => m.conversation_id) || [];
-      
-      if (conversationIds.length === 0) {
-        setConversations([]);
-        setLoading(false);
-        return;
-      }
+      const formattedConversations: ConversationWithDetails[] = (memberData || [])
+        .map((m: any) => m.conversation)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
-      const { data: convData, error: convError } = await supabase
-        .from("conversations")
-        .select("*")
-        .in("id", conversationIds)
-        .order("updated_at", { ascending: false });
-
-      if (convError) throw convError;
-
-      const conversationsWithDetails: ConversationWithDetails[] = await Promise.all(
-        (convData || []).map(async (conv) => {
-          // Get members
-          const { data: members } = await supabase
-            .from("conversation_members")
-            .select("*")
-            .eq("conversation_id", conv.id);
-
-          // Get user_ids from members
-          const userIds = (members || []).map((m) => m.user_id);
-          
-          // Fetch profiles separately
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("*")
-            .in("user_id", userIds);
-
-          const profilesMap = new Map(
-            (profiles || []).map((p) => [p.user_id, p as Profile])
-          );
-
-          const formattedMembers = (members || []).map((m: any) => ({
-            ...m,
-            profile: profilesMap.get(m.user_id) || null,
-          }));
-
-          return {
-            ...conv,
-            members: formattedMembers,
-          } as ConversationWithDetails;
-        })
-      );
-
-      setConversations(conversationsWithDetails);
+      setConversations(formattedConversations);
     } catch (error: any) {
       console.error("Error fetching conversations:", error);
       toast({

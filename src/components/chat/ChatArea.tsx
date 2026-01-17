@@ -95,11 +95,12 @@ export function ChatArea({
     profile.display_name || profile.email.split("@")[0]
   );
 
-  const { flashMessages, sendFlashMessage, clearFlashMessages } = useFlashChat(
+  const { flashMessages, sendFlashMessage, toggleFlashMode, clearFlashMessages } = useFlashChat(
     conversation.id,
     profile.user_id,
     profile,
-    isFlashMode
+    isFlashMode,
+    setIsFlashMode
   );
 
   useEffect(() => {
@@ -140,6 +141,11 @@ export function ChatArea({
     } finally {
       setSending(false);
     }
+  };
+
+  const handleToggleFlash = async () => {
+    const nextState = !isFlashMode;
+    await toggleFlashMode(nextState);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "file") => {
@@ -365,7 +371,7 @@ export function ChatArea({
                 <Button
                   variant={isFlashMode ? "default" : "ghost"}
                   size="icon"
-                  onClick={() => setIsFlashMode(!isFlashMode)}
+                  onClick={handleToggleFlash}
                   className={`h-9 w-9 ${isFlashMode ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
                 >
                   {isFlashMode ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4" />}
