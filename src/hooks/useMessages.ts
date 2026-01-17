@@ -19,18 +19,47 @@ export function useMessages(conversationId: string | null, userId: string | unde
     }
 
     try {
-      const { data, error } = await supabase
+      const { data: messagesData, error: messagesError } = await supabase
         .from("messages")
-        .select("*, profiles!messages_sender_id_fkey(*)")
+        .select("*")
         .eq("conversation_id", conversationId)
         .eq("is_deleted", false)
         .order("created_at", { ascending: true });
 
-      if (error) throw error;
+      if (messagesError) throw messagesError;
 
-      const formatted = (data || []).map((msg: any) => ({
+      if (!messagesData || messagesData.length === 0) {
+        setMessages([]);
+        setLoading(false);
+        return;
+      }
+
+      const senderIds = Array.from(new Set(messagesData.map((m) => m.sender_id)));
+
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", senderIds);
+
+      if (profilesError) throw profilesError;
+
+      const profilesMap = new Map(profilesData?.map((p) => [p.user_id, p]));
+
+      const formatted = messagesData.map((msg) => ({
         ...msg,
-        sender: msg.profiles as Profile,
+        message_type: msg.message_type as Message['message_type'],
+        sender: profilesMap.get(msg.sender_id) || {
+          id: 'unknown',
+          user_id: msg.sender_id,
+          email: 'Unknown',
+          display_name: 'Unknown User',
+          avatar_url: null,
+          user_code: 'UNKNOWN',
+          is_online: false,
+          last_seen: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as Profile,
       }));
 
       setMessages(formatted);
