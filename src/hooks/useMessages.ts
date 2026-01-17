@@ -21,17 +21,48 @@ export function useMessages(conversationId: string | null, userId: string | unde
     try {
       const { data, error } = await supabase
         .from("messages")
-        .select("*, profiles!messages_sender_id_fkey(*)")
+        .select("*")
         .eq("conversation_id", conversationId)
-        .eq("is_deleted", false)
+        .neq("is_deleted", true)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
 
-      const formatted = (data || []).map((msg: any) => ({
-        ...msg,
-        sender: msg.profiles as Profile,
-      }));
+      const senderIds = Array.from(
+        new Set((data || []).map((m: any) => m.sender_id).filter(Boolean))
+      );
+
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", senderIds);
+
+      if (profilesError) throw profilesError;
+
+      const profilesMap = new Map(
+        (profiles || []).map((p: any) => [p.user_id, p as Profile])
+      );
+
+      const formatted = (data || []).map((msg: any) => {
+        const sender = profilesMap.get(msg.sender_id);
+        const fallbackSender: Profile = {
+          id: "",
+          user_id: msg.sender_id,
+          email: "",
+          display_name: null,
+          avatar_url: null,
+          user_code: "",
+          is_online: false,
+          last_seen: msg.created_at,
+          created_at: msg.created_at,
+          updated_at: msg.created_at,
+        };
+
+        return {
+          ...msg,
+          sender: sender || fallbackSender,
+        } as MessageWithSender;
+      });
 
       setMessages(formatted);
     } catch (error) {
@@ -69,9 +100,22 @@ export function useMessages(conversationId: string | null, userId: string | unde
             .eq("user_id", payload.new.sender_id)
             .single();
 
+          const fallbackSender: Profile = {
+            id: "",
+            user_id: payload.new.sender_id,
+            email: "",
+            display_name: null,
+            avatar_url: null,
+            user_code: "",
+            is_online: false,
+            last_seen: payload.new.created_at as string,
+            created_at: payload.new.created_at as string,
+            updated_at: payload.new.created_at as string,
+          };
+
           const newMessage: MessageWithSender = {
             ...(payload.new as Message),
-            sender: profile as Profile,
+            sender: (profile as Profile) || fallbackSender,
           };
 
           setMessages((prev) => [...prev, newMessage]);
