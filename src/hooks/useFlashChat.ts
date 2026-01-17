@@ -51,11 +51,40 @@ export function useFlashChat(
       })
       .on("broadcast", { event: "flash_mode_toggle" }, (payload) => {
         const { enabled: newEnabled, senderId } = payload.payload;
+        console.log(`Received flash toggle: ${newEnabled} from ${senderId}`);
         if (senderId !== userId) {
           setEnabled(newEnabled);
         }
       })
-      .subscribe();
+      .on("broadcast", { event: "request_flash_status" }, (payload) => {
+        // If I am the one who enabled it (or just anyone who knows the state), response
+        // Only respond if we have flash enabled, to avoid storm. 
+        // Or if we are the "owner" conceptually? For peer-to-peer, anyone can reply.
+        // Let's have anyone with enabled=true reply.
+        if (enabled && payload.payload.requesterId !== userId) {
+             channel.send({
+                type: "broadcast",
+                event: "flash_mode_sync",
+                payload: { enabled: true, senderId: userId },
+             });
+        }
+      })
+      .on("broadcast", { event: "flash_mode_sync" }, (payload) => {
+         const { enabled: syncEnabled, senderId } = payload.payload;
+         if (senderId !== userId && syncEnabled && !enabled) {
+             setEnabled(true);
+         }
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+             // Request current status on join
+             channel.send({
+                type: "broadcast",
+                event: "request_flash_status",
+                payload: { requesterId: userId },
+             });
+        }
+      });
 
     channelRef.current = channel;
 

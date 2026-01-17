@@ -35,6 +35,8 @@ import type { Profile } from "@/lib/supabase";
 import type { ConversationWithDetails } from "@/hooks/useConversations";
 import { useToast } from "@/hooks/use-toast";
 
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+
 interface SidebarProps {
   profile: Profile;
   conversations: ConversationWithDetails[];
@@ -67,6 +69,7 @@ export function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const onlineUserIds = useOnlineStatus();
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(profile.user_code);
@@ -136,62 +139,62 @@ export function Sidebar({
   const getOtherUserStatus = (conv: ConversationWithDetails) => {
     if (conv.is_group || conv.is_channel) return null;
     const other = conv.members.find((m) => m.user_id !== profile.user_id);
-    return other?.profile?.is_online || false;
+    return other ? onlineUserIds.has(other.user_id) : false;
   };
 
   return (
     <div className="w-80 h-full bg-sidebar flex flex-col border-r border-sidebar-border">
-      {/* Header */}
-      <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-              <MessageCircle className="w-5 h-5 text-primary-foreground" />
+      {/* Header - Compact */}
+      <div className="p-3 border-b border-sidebar-border/50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/60 rounded-lg flex items-center justify-center shadow-md shadow-primary/20">
+              <MessageCircle className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="font-display font-semibold text-lg">Lets Panic</span>
+            <span className="font-display font-semibold text-base tracking-tight">Lets Panic</span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-7 w-7">
+                <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleCopyCode} className="gap-2">
-                {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
-                Copy my code: {profile.user_code}
+            <DropdownMenuContent align="end" className="glass-card">
+              <DropdownMenuItem onClick={handleCopyCode} className="gap-2 cursor-pointer">
+                {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                Copy code: {profile.user_code}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onSignOut} className="text-destructive gap-2">
-                <LogOut className="h-4 w-4" />
+              <DropdownMenuItem onClick={onSignOut} className="text-destructive gap-2 cursor-pointer">
+                <LogOut className="h-3.5 w-3.5" />
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        {/* Search */}
+        {/* Search - Compact */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Search conversations..."
+            placeholder="Search..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-sidebar-accent border-sidebar-border rounded-full h-10"
+            className="pl-8 bg-sidebar-accent/50 border-sidebar-border/50 rounded-md h-8 text-xs focus-visible:ring-1"
           />
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="p-4 flex gap-2">
+      {/* Action Buttons - Compact */}
+      <div className="p-2 px-3 flex gap-2">
         <Dialog open={dialogOpen === "direct"} onOpenChange={(o) => setDialogOpen(o ? "direct" : null)}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="flex-1 rounded-full">
-              <UserPlus className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5 shadow-sm">
+              <UserPlus className="h-3.5 w-3.5" />
               New Chat
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="glass-card">
             <DialogHeader>
               <DialogTitle>Start a new chat</DialogTitle>
               <DialogDescription>
@@ -203,7 +206,7 @@ export function Sidebar({
                 placeholder="Enter user code (e.g., A1B2C3D4)"
                 value={newChatCode}
                 onChange={(e) => setNewChatCode(e.target.value.toUpperCase())}
-                className="uppercase font-mono tracking-wider"
+                className="uppercase font-mono tracking-wider glass-input"
               />
               <Button
                 onClick={() => handleAction(() => onCreateDirectChat(newChatCode))}
@@ -218,12 +221,12 @@ export function Sidebar({
 
         <Dialog open={dialogOpen === "join"} onOpenChange={(o) => setDialogOpen(o ? "join" : null)}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="flex-1 rounded-full">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5 shadow-sm">
+              <Plus className="h-3.5 w-3.5" />
               Join
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="glass-card">
             <DialogHeader>
               <DialogTitle>Join with invite code</DialogTitle>
               <DialogDescription>
@@ -235,7 +238,7 @@ export function Sidebar({
                 placeholder="Enter invite code"
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                className="uppercase font-mono tracking-wider"
+                className="uppercase font-mono tracking-wider glass-input"
               />
               <Button
                 onClick={() => handleAction(() => onJoinByCode(joinCode))}
@@ -267,24 +270,24 @@ export function Sidebar({
                   <div
                     key={conv.id}
                     onClick={() => onSelectConversation(conv)}
-                    className={`channel-item group ${selectedConversation?.id === conv.id ? "active" : ""}`}
+                    className={`compact-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
                   >
                     <div className="relative">
-                      <Avatar className="h-9 w-9">
+                      <Avatar className="h-8 w-8 ring-1 ring-border/50">
                         <AvatarImage src={getConversationAvatar(conv) || undefined} />
-                        <AvatarFallback className="bg-secondary text-xs">
+                        <AvatarFallback className="bg-secondary text-[10px]">
                           {getInitials(name)}
                         </AvatarFallback>
                       </Avatar>
                       <span 
-                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-sidebar ${
+                        className={`absolute bottom-0 right-0 w-2 h-2 rounded-full ring-2 ring-sidebar ${
                           isOnline ? "bg-[hsl(var(--online))]" : "bg-[hsl(var(--offline))]"
                         }`} 
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="truncate text-sm font-medium block">{name}</span>
-                      <span className="text-xs text-muted-foreground truncate block">
+                      <span className="truncate text-sm font-medium block leading-tight">{name}</span>
+                      <span className="text-[10px] text-muted-foreground truncate block">
                         {isOnline ? "Online" : "Offline"}
                       </span>
                     </div>
@@ -340,14 +343,14 @@ export function Sidebar({
                 <div
                   key={conv.id}
                   onClick={() => onSelectConversation(conv)}
-                  className={`channel-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
+                  className={`compact-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
                 >
-                  <div className="h-9 w-9 bg-secondary/80 rounded-lg flex items-center justify-center">
-                    <Users className="h-4 w-4 text-muted-foreground" />
+                  <div className="h-7 w-7 bg-secondary/80 rounded-md flex items-center justify-center">
+                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="truncate text-sm font-medium block">{getConversationName(conv)}</span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="truncate text-sm font-medium block leading-tight">{getConversationName(conv)}</span>
+                    <span className="text-[10px] text-muted-foreground">
                       {conv.members.length} member{conv.members.length !== 1 ? "s" : ""}
                     </span>
                   </div>
@@ -403,18 +406,18 @@ export function Sidebar({
                 <div
                   key={conv.id}
                   onClick={() => onSelectConversation(conv)}
-                  className={`channel-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
+                  className={`compact-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
                 >
-                  <div className="h-9 w-9 bg-secondary/80 rounded-lg flex items-center justify-center">
+                  <div className="h-7 w-7 bg-secondary/80 rounded-md flex items-center justify-center">
                     {conv.has_audio ? (
-                      <Mic className="h-4 w-4 text-muted-foreground" />
+                      <Mic className="h-3.5 w-3.5 text-muted-foreground" />
                     ) : (
-                      <Hash className="h-4 w-4 text-muted-foreground" />
+                      <Hash className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
                   </div>
-                  <span className="truncate text-sm font-medium flex-1">{getConversationName(conv)}</span>
+                  <span className="truncate text-sm font-medium flex-1 leading-tight">{getConversationName(conv)}</span>
                   {conv.has_audio && (
-                    <span className="text-[10px] bg-success/20 text-success px-2 py-0.5 rounded-full font-medium">
+                    <span className="text-[9px] bg-success/20 text-success px-1.5 py-0.5 rounded-full font-medium">
                       Voice
                     </span>
                   )}
@@ -430,21 +433,21 @@ export function Sidebar({
         </div>
       </ScrollArea>
 
-      {/* User Profile */}
-      <div className="p-3 border-t border-sidebar-border bg-sidebar-accent/50">
-        <div className="flex items-center gap-3">
+      {/* User Profile - Compact */}
+      <div className="p-2 border-t border-sidebar-border bg-sidebar-accent/30">
+        <div className="flex items-center gap-2 px-1">
           <div className="relative">
-            <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+            <Avatar className="h-8 w-8 ring-1 ring-primary/20">
               <AvatarImage src={profile.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary/10 text-primary">
+              <AvatarFallback className="bg-primary/10 text-primary text-xs">
                 {getInitials(getDisplayName(profile))}
               </AvatarFallback>
             </Avatar>
-            <span className="absolute bottom-0 right-0 w-3 h-3 bg-[hsl(var(--online))] rounded-full ring-2 ring-sidebar" />
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[hsl(var(--online))] rounded-full ring-2 ring-sidebar" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{getDisplayName(profile)}</p>
-            <p className="text-xs text-muted-foreground font-mono">#{profile.user_code}</p>
+            <p className="text-sm font-medium truncate leading-tight">{getDisplayName(profile)}</p>
+            <p className="text-[10px] text-muted-foreground font-mono leading-tight">#{profile.user_code}</p>
           </div>
         </div>
       </div>

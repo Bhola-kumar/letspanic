@@ -268,14 +268,14 @@ export function ChatArea({
     return (
       <div
         key={msg.id}
-        className={`flex gap-3 group animate-fade-in ${isOwn ? "flex-row-reverse" : ""}`}
+        className={`flex gap-2 group animate-enter ${isOwn ? "flex-row-reverse" : ""} ${isFirstInGroup ? "mt-4" : "mt-0.5"}`}
       >
         {!isOwn && (
-          <div className="w-8 shrink-0">
+          <div className="w-7 shrink-0">
             {showAvatar && (
-              <Avatar className="h-8 w-8 ring-2 ring-background shadow-md">
+              <Avatar className="h-7 w-7 ring-1 ring-border/50 shadow-sm">
                 <AvatarImage src={msg.sender?.avatar_url || undefined} />
-                <AvatarFallback className="bg-secondary text-xs font-medium">
+                <AvatarFallback className="bg-secondary text-[10px] font-medium">
                   {getInitials(senderName)}
                 </AvatarFallback>
               </Avatar>
@@ -284,18 +284,12 @@ export function ChatArea({
         )}
 
         <div className={`flex flex-col max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
-          {!isOwn && isFirstInGroup && (
-            <span className="text-xs font-medium text-primary mb-1 ml-1">
-              {senderName}
-            </span>
-          )}
-
           <div
             className={`
-              relative px-4 py-2.5 rounded-2xl shadow-sm transition-all duration-200
+              relative px-3 py-2 rounded-xl shadow-sm transition-all duration-200 group
               ${isOwn 
-                ? "bg-primary text-primary-foreground rounded-br-md" 
-                : "bg-secondary/80 text-foreground rounded-bl-md backdrop-blur-sm"
+                ? "bg-primary text-primary-foreground rounded-br-sm" 
+                : "bg-secondary/80 text-foreground rounded-bl-sm backdrop-blur-sm"
               }
               hover:shadow-md
             `}
@@ -306,7 +300,7 @@ export function ChatArea({
                   <img
                     src={msg.file_url!}
                     alt={msg.file_name || "Image"}
-                    className="max-w-xs rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                    className="max-w-xs rounded-md cursor-pointer hover:opacity-90 transition-opacity"
                     onClick={() => window.open(msg.file_url!, "_blank")}
                   />
                 )}
@@ -315,9 +309,9 @@ export function ChatArea({
                     href={msg.file_url!}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm hover:underline p-2 bg-background/20 rounded-lg"
+                    className="flex items-center gap-2 text-xs hover:underline p-2 bg-background/20 rounded-md"
                   >
-                    <File className="h-4 w-4" />
+                    <File className="h-3.5 w-3.5" />
                     <span className="truncate max-w-[150px]">{msg.file_name || "Download file"}</span>
                     <Download className="h-3 w-3 ml-auto" />
                   </a>
@@ -326,7 +320,7 @@ export function ChatArea({
                   <video
                     src={msg.file_url!}
                     controls
-                    className="max-w-xs rounded-lg"
+                    className="max-w-xs rounded-md"
                   />
                 )}
                 {msg.message_type === "audio" && (
@@ -334,34 +328,33 @@ export function ChatArea({
                 )}
               </div>
             ) : (
-              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
+              <p className="text-sm whitespace-pre-wrap break-words leading-snug pr-4">{msg.content}</p>
+            )}
+
+            {/* Overlay Actions */}
+            {isOwn && (
+              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="bg-background/20 backdrop-blur rounded-full p-0.5 shadow-sm cursor-pointer hover:bg-background/40">
+                      <MoreVertical className="h-3 w-3 text-current" />
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="glass-card">
+                    <DropdownMenuItem onClick={() => onDeleteMessage(msg.id)} className="text-destructive gap-2 text-xs cursor-pointer">
+                      <Trash2 className="h-3 w-3" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )}
           </div>
 
-          <span className="text-[10px] text-muted-foreground mt-1 mx-1">
+          <span className="text-[9px] text-muted-foreground mt-0.5 mx-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {formatMessageTime(msg.created_at)}
           </span>
         </div>
-
-        {isOwn && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-              >
-                <MoreVertical className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => onDeleteMessage(msg.id)} className="text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
       </div>
     );
   };
@@ -371,31 +364,33 @@ export function ChatArea({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="h-16 px-6 flex items-center justify-between border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-10">
+      {/* Header - Compact */}
+      <div className="h-14 px-4 flex items-center justify-between border-b border-border/50 bg-card/80 backdrop-blur-xl sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+            <Avatar className="h-8 w-8 ring-1 ring-primary/20">
               <AvatarImage src={getOtherUserAvatar() || undefined} />
-              <AvatarFallback className="bg-primary/10 text-primary font-medium">
+              <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
                 {getInitials(getConversationTitle())}
               </AvatarFallback>
             </Avatar>
             {otherUser?.profile?.is_online && (
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-[hsl(var(--online))] rounded-full ring-2 ring-background" />
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[hsl(var(--online))] rounded-full ring-2 ring-background" />
             )}
           </div>
-          <div>
-            <h2 className="font-semibold text-foreground">{getConversationTitle()}</h2>
+          <div className="flex flex-col">
+            <h2 className="font-semibold text-sm leading-none mb-0.5">{getConversationTitle()}</h2>
             {conversation.is_group || conversation.is_channel ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground">
                 {conversation.members.length} member{conversation.members.length !== 1 ? "s" : ""}
               </p>
             ) : otherUser?.profile ? (
-              <OnlineStatus 
-                isOnline={otherUser.profile.is_online || false} 
-                lastSeen={otherUser.profile.last_seen}
-              />
+              <div className="scale-90 origin-left">
+                <OnlineStatus 
+                  isOnline={otherUser.profile.is_online || false} 
+                  lastSeen={otherUser.profile.last_seen}
+                />
+              </div>
             ) : null}
           </div>
         </div>
@@ -605,9 +600,8 @@ export function ChatArea({
         </div>
       )}
 
-      {/* Messages */}
       <ScrollArea className="flex-1 scrollbar-thin">
-        <div className="p-6 space-y-4 max-w-3xl mx-auto">
+        <div className="p-4 max-w-3xl mx-auto flex flex-col">
           {isFlashMode ? (
             // Flash Mode Messages
             <>
@@ -743,8 +737,8 @@ export function ChatArea({
         </div>
       </ScrollArea>
 
-      {/* Input */}
-      <div className={`relative p-4 border-t backdrop-blur-xl ${isFlashMode ? "border-warning/20 bg-warning/5" : "border-border bg-card/50"}`}>
+      {/* Input - Compact */}
+      <div className={`relative p-3 border-t backdrop-blur-xl ${isFlashMode ? "border-warning/20 bg-warning/5" : "border-border/50 bg-card/40"}`}>
         {/* Live Transcript Overlay */}
         {inAudioRoom && (
           <div className="absolute bottom-full left-0 right-0 px-4 pb-2 pointer-events-none flex justify-center">
