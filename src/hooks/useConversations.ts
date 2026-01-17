@@ -179,6 +179,10 @@ export function useConversations(userId: string | undefined) {
     return newConv;
   };
 
+  const generateInviteCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
+
   const createGroup = async (name: string) => {
     if (!userId) throw new Error("Not authenticated");
 
@@ -189,6 +193,7 @@ export function useConversations(userId: string | undefined) {
         is_group: true,
         is_channel: false,
         owner_id: userId,
+        invite_code: generateInviteCode(),
       })
       .select()
       .single();
@@ -216,6 +221,7 @@ export function useConversations(userId: string | undefined) {
         is_channel: true,
         has_audio: hasAudio,
         owner_id: userId,
+        invite_code: generateInviteCode(),
       })
       .select()
       .single();

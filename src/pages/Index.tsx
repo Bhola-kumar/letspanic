@@ -4,6 +4,7 @@ import { useConversations, ConversationWithDetails } from "@/hooks/useConversati
 import { useMessages } from "@/hooks/useMessages";
 import { LoginScreen } from "@/components/chat/LoginScreen";
 import { Sidebar } from "@/components/chat/Sidebar";
+import { usePresence } from "@/hooks/usePresence";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { EmptyState } from "@/components/chat/EmptyState";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +13,8 @@ const Index = () => {
   const { user, profile, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithDetails | null>(null);
   const { toast } = useToast();
+  
+  usePresence(user?.id);
 
   const {
     conversations,
