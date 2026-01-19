@@ -208,31 +208,44 @@ export function useConversations(userId: string | undefined) {
   const joinByCode = async (code: string) => {
     if (!userId) throw new Error("Not authenticated");
 
-    const { data: result, error: rpcError } = await supabase.rpc('join_group_by_code', {
-      invite_code_input: code.trim().toUpperCase()
-    });
+    const normalizedCode = code.trim().toUpperCase();
 
-    if (rpcError) {
-      console.error("RPC Error joining group:", rpcError);
-      throw rpcError;
-    }
-
-    if (!result.success) {
-      throw new Error(result.error);
-    }
-
+    // Find conversation by invite code
     const { data: conv, error: convError } = await supabase
       .from("conversations")
       .select("*")
-      .eq("id", result.conversation_id)
+      .eq("invite_code", normalizedCode)
       .single();
-    
+
     if (convError || !conv) {
-      console.error("Error fetching joined conversation:", convError);
-      // Wait a moment and try again, might be replication lag or RLS catch-up
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      throw new Error("Invalid invite code or conversation not found");
+    }
+
+    // Check if already a member
+    const { data: existingMember } = await supabase
+      .from("conversation_members")
+      .select("id")
+      .eq("conversation_id", conv.id)
+      .eq("user_id", userId)
+      .single();
+
+    if (existingMember) {
       fetchConversations();
-      return { id: result.conversation_id } as ConversationWithDetails; // Return partial if fetch fails
+      return conv;
+    }
+
+    // Join the conversation
+    const { error: joinError } = await supabase
+      .from("conversation_members")
+      .insert({
+        conversation_id: conv.id,
+        user_id: userId,
+        role: "member",
+      });
+
+    if (joinError) {
+      console.error("Error joining conversation:", joinError);
+      throw new Error("Failed to join conversation");
     }
 
     fetchConversations();

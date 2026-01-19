@@ -219,10 +219,6 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
-      join_group_by_code: {
-        Args: { invite_code_input: string }
-        Returns: { success: boolean; error?: string; conversation_id?: string }
-      }
     }
     Enums: {
       [_ in never]: never
