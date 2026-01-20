@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 const Index = () => {
   const { user, profile, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithDetails | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
   
   usePresence(user?.id);
@@ -47,6 +48,15 @@ const Index = () => {
       }
     }
   }, [conversations]);
+
+  // Detect mobile viewport to render a single-pane experience
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
 
   const handleGoogleLogin = async () => {
     try {
@@ -118,6 +128,41 @@ const Index = () => {
   }
 
   const isOwner = selectedConversation?.owner_id === user.id;
+
+  // Mobile: single-pane - show list first, then chat. Desktop: two-pane layout.
+  if (isMobile) {
+    return (
+      <div className="h-screen w-full flex overflow-hidden bg-background">
+        {!selectedConversation ? (
+          <Sidebar
+            profile={profile}
+            conversations={conversations}
+            selectedConversation={selectedConversation}
+            onSelectConversation={setSelectedConversation}
+            onCreateDirectChat={handleCreateDirectChat}
+            onCreateGroup={handleCreateGroup}
+            onCreateChannel={handleCreateChannel}
+            onJoinByCode={handleJoinByCode}
+            onSignOut={signOut}
+          />
+        ) : (
+          <ChatArea
+            conversation={selectedConversation}
+            messages={messages}
+            messagesLoading={msgsLoading}
+            profile={profile}
+            onSendMessage={handleSendMessage}
+            onSendFile={handleSendFile}
+            onDeleteMessage={handleDeleteMessage}
+            onLeave={handleLeave}
+            onDelete={handleDelete}
+            isOwner={isOwner}
+            onBack={() => setSelectedConversation(null)}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">

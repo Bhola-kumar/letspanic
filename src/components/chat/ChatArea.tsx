@@ -40,6 +40,7 @@ import {
   Download,
   X,
   Copy,
+  ArrowLeft,
   Zap,
   ZapOff,
 } from "lucide-react";
@@ -67,6 +68,7 @@ interface ChatAreaProps {
   onLeave: () => Promise<void>;
   onDelete: () => Promise<void>;
   isOwner: boolean;
+  onBack?: () => void;
 }
 
 export function ChatArea({
@@ -80,6 +82,7 @@ export function ChatArea({
   onLeave,
   onDelete,
   isOwner,
+  onBack,
 }: ChatAreaProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -128,6 +131,10 @@ export function ChatArea({
     let mounted = true;
     const loadDevices = async () => {
       try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+          console.warn("Media devices not supported in this environment");
+          return;
+        }
         const devices = await navigator.mediaDevices.enumerateDevices();
         const inputs = devices.filter(d => d.kind === "audioinput");
         if (!mounted) return;
@@ -139,10 +146,10 @@ export function ChatArea({
     };
     loadDevices();
     const onChange = () => loadDevices();
-    navigator.mediaDevices.addEventListener("devicechange", onChange);
+    navigator.mediaDevices?.addEventListener("devicechange", onChange);
     return () => {
       mounted = false;
-      navigator.mediaDevices.removeEventListener("devicechange", onChange);
+      navigator.mediaDevices?.removeEventListener("devicechange", onChange);
     };
   }, [selectedInput]);
 
@@ -367,6 +374,14 @@ export function ChatArea({
       {/* Header - Compact */}
       <div className="h-14 px-4 flex items-center justify-between border-b border-border/50 bg-card/80 backdrop-blur-xl sticky top-0 z-10">
         <div className="flex items-center gap-3">
+          {/* Mobile back button (only shown when onBack provided) */}
+          {typeof onBack === "function" && (
+            <div className="md:hidden mr-1">
+              <Button variant="ghost" size="icon" onClick={onBack} className="h-9 w-9">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <div className="relative">
             <Avatar className="h-8 w-8 ring-1 ring-primary/20">
               <AvatarImage src={getOtherUserAvatar() || undefined} />

@@ -143,7 +143,7 @@ export function Sidebar({
   };
 
   return (
-    <div className="w-80 h-full bg-sidebar flex flex-col border-r border-sidebar-border">
+    <div className="w-full md:w-80 h-full bg-sidebar flex flex-col md:border-r border-sidebar-border">
       {/* Header - Compact */}
       <div className="p-3 border-b border-sidebar-border/50">
         <div className="flex items-center justify-between mb-3">
