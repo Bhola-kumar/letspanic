@@ -42,7 +42,6 @@ import {
   Copy,
   Zap,
   ZapOff,
-  Video,
 } from "lucide-react";
 import type { Profile } from "@/lib/supabase";
 import type { ConversationWithDetails } from "@/hooks/useConversations";
@@ -51,13 +50,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useFlashChat } from "@/hooks/useFlashChat";
 import { useVoiceRoom } from "@/hooks/useVoiceRoom";
-import { useVideoCall } from "@/hooks/useVideoCall";
 import { useTranscription } from "@/hooks/useTranscription";
 import { ParticipantAudio } from "@/components/chat/ParticipantAudio";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { OnlineStatus } from "@/components/chat/OnlineStatus";
-import { VideoCallModal } from "@/components/chat/VideoCallModal";
-import { AudioRoomPanel } from "@/components/chat/AudioRoomPanel";
 import { format, isToday, isYesterday } from "date-fns";
 
 interface ChatAreaProps {
@@ -97,12 +93,6 @@ export function ChatArea({
     leaveRoom, 
     toggleMute 
   } = useVoiceRoom(conversation.id, profile.user_id);
-
-  // Video call hook for DMs
-  const videoCall = useVideoCall(
-    !conversation.is_group && !conversation.is_channel ? conversation.id : null,
-    profile.user_id
-  );
 
   const { current: liveTranscript, isFinal: liveIsFinal, supported: transcriptionSupported } = useTranscription(inAudioRoom);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -406,28 +396,6 @@ export function ChatArea({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Video Call for DMs */}
-          {!conversation.is_group && !conversation.is_channel && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={videoCall.startCall}
-                    disabled={videoCall.inCall || videoCall.isCalling}
-                    className="h-9 w-9"
-                  >
-                    <Video className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Video Call</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-
           {/* Flash Mode Toggle */}
           <TooltipProvider>
             <Tooltip>
@@ -447,8 +415,7 @@ export function ChatArea({
             </Tooltip>
           </TooltipProvider>
 
-          {/* Audio controls for channels with audio */}
-          {conversation.has_audio && !conversation.is_channel && (
+          {conversation.has_audio && (
             <>
               {inAudioRoom ? (
                 <>
@@ -865,25 +832,6 @@ export function ChatArea({
           </Button>
         </div>
       </div>
-
-      {/* Video Call Modal for DMs */}
-      <VideoCallModal
-        isOpen={videoCall.inCall || videoCall.isCalling || videoCall.isReceivingCall}
-        inCall={videoCall.inCall}
-        isCalling={videoCall.isCalling}
-        isReceivingCall={videoCall.isReceivingCall}
-        localStream={videoCall.localStream}
-        remoteStream={videoCall.remoteStream}
-        isMuted={videoCall.isMuted}
-        isVideoOff={videoCall.isVideoOff}
-        callerName={getConversationTitle()}
-        callerAvatar={getOtherUserAvatar() || undefined}
-        onAccept={videoCall.acceptCall}
-        onReject={videoCall.rejectCall}
-        onEnd={videoCall.endCall}
-        onToggleMute={videoCall.toggleMute}
-        onToggleVideo={videoCall.toggleVideo}
-      />
     </div>
   );
 }
