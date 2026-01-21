@@ -16,6 +16,9 @@ interface CallOverlayProps {
   onEnd: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
+  audioOutputs?: MediaDeviceInfo[];
+  selectedOutput?: string | null;
+  onSwitchOutput?: (deviceId: string) => void;
 }
 
 export function CallOverlay({
@@ -27,6 +30,9 @@ export function CallOverlay({
   onEnd,
   isMuted,
   onToggleMute,
+  audioOutputs,
+  selectedOutput,
+  onSwitchOutput
 }: CallOverlayProps) {
   const [duration, setDuration] = useState(0);
 
@@ -59,10 +65,44 @@ export function CallOverlay({
   const getInitials = (name: string) => name.substring(0, 2).toUpperCase();
   const displayName = otherUser.display_name || otherUser.username || "User";
 
+  // Determine if current output is "speaker" (heuristic)
+  const isSpeakerActive = selectedOutput && audioOutputs?.find(d => d.deviceId === selectedOutput)?.label.toLowerCase().includes('speaker');
+
+  const toggleSpeaker = () => {
+     if (!audioOutputs || audioOutputs.length === 0 || !onSwitchOutput) return;
+     
+     // Simple toggle: if we have multiple, cycle them.
+     // Or find one with 'speaker' vs 'default'/'earpiece'
+     if (audioOutputs.length === 0) return;
+
+     // If current is speaker, try to find non-speaker (headset, earpiece, default)
+     // If current is NOT speaker, try to find speaker.
+     
+     const speakerDevice = audioOutputs.find(d => d.label.toLowerCase().includes('speaker'));
+     const nonSpeakerDevice = audioOutputs.find(d => !d.label.toLowerCase().includes('speaker') && d.deviceId !== 'default');
+     const defaultDevice = audioOutputs.find(d => d.deviceId === 'default');
+
+     if (isSpeakerActive) {
+         // Switch to non-speaker or default
+         if (nonSpeakerDevice) onSwitchOutput(nonSpeakerDevice.deviceId);
+         else if (defaultDevice) onSwitchOutput(defaultDevice.deviceId);
+         else if (audioOutputs[0]) onSwitchOutput(audioOutputs[0].deviceId); // fallback
+     } else {
+         // Switch to speaker
+         if (speakerDevice) onSwitchOutput(speakerDevice.deviceId);
+         // If no explicit speaker device found, maybe just cycle to next available?
+         else {
+             const currentIndex = audioOutputs.findIndex(d => d.deviceId === selectedOutput);
+             const nextIndex = (currentIndex + 1) % audioOutputs.length;
+             onSwitchOutput(audioOutputs[nextIndex].deviceId);
+         }
+     }
+  };
+
   return (
     <Dialog open={true} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md bg-background/95 backdrop-blur-xl border-border p-0 overflow-hidden shadow-2xl [&>button]:hidden">
-        <div className="flex flex-col items-center justify-center p-8 space-y-8 select-none">
+      <DialogContent className="w-[100vw] h-[100dvh] max-w-none rounded-none sm:w-auto sm:h-auto sm:max-w-md sm:rounded-lg bg-background/95 backdrop-blur-xl border-border p-0 overflow-hidden shadow-2xl [&>button]:hidden flex flex-col justify-center">
+        <div className="flex flex-col items-center justify-center p-8 space-y-8 select-none flex-1">
           
           {/* Status Text */}
           <div className="text-center space-y-1">
@@ -150,12 +190,13 @@ export function CallOverlay({
                   <PhoneOff className="h-8 w-8" />
                 </Button>
 
-                {/* Placeholder for future specific volume/speaker controls */}
+                {/* Speaker Toggle */}
                 <Button
                   size="lg"
-                  variant="outline"
-                  className="h-14 w-14 rounded-full text-muted-foreground"
-                  disabled
+                  variant={isSpeakerActive ? "secondary" : "outline"}
+                  className="h-14 w-14 rounded-full"
+                  onClick={toggleSpeaker}
+                  disabled={!audioOutputs || audioOutputs.length < 2} // Disable if no choice
                 >
                   <Volume2 className="h-6 w-6" />
                 </Button>

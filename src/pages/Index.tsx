@@ -43,8 +43,11 @@ const Index = () => {
     inAudioRoom, 
     participants, 
     audioInputs, 
+    audioOutputs,
     selectedInput, 
-    switchDevice 
+    selectedOutput,
+    switchDevice,
+    switchOutput 
   } = useVoiceRoom(callData?.conversationId || null, user?.id);
 
   usePresence(user?.id);
@@ -373,10 +376,18 @@ const Index = () => {
           onEnd={endCall}
           isMuted={isMuted}
           onToggleMute={toggleMute}
+          audioOutputs={audioOutputs}
+          selectedOutput={selectedOutput}
+          onSwitchOutput={switchOutput}
         />
         {/* Global Audio Rendering */}
         {participants.map((p: any) => (
-          <ParticipantAudio key={p.user_id} userId={p.user_id} stream={p.stream} />
+          <ParticipantAudio 
+            key={p.user_id} 
+            userId={p.user_id} 
+            stream={p.stream} 
+            outputDeviceId={selectedOutput || undefined}
+           />
         ))}
 
         {!selectedConversation ? (
@@ -433,6 +444,9 @@ const Index = () => {
           onEnd={endCall}
           isMuted={isMuted}
           onToggleMute={toggleMute}
+          audioOutputs={audioOutputs}
+          selectedOutput={selectedOutput}
+          onSwitchOutput={switchOutput}
         />
       <Sidebar
         profile={profile}

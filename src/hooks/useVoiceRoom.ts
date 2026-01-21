@@ -13,7 +13,9 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
   const [isMuted, setIsMuted] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [selectedInput, setSelectedInput] = useState<string | null>(null);
+  const [selectedOutput, setSelectedOutput] = useState<string | null>(null);
   
   // Track the current active room ID (either from prop or manual join)
   const [activeRoomId, setActiveRoomId] = useState<string | null>(conversationId);
@@ -318,10 +320,20 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
         if (!navigator.mediaDevices?.enumerateDevices) return;
         const devices = await navigator.mediaDevices.enumerateDevices();
         const inputs = devices.filter(d => d.kind === "audioinput");
+        const outputs = devices.filter(d => d.kind === "audiooutput");
+        
         if (mounted) {
           setAudioInputs(inputs);
+          setAudioOutputs(outputs);
+          
           if (inputs.length > 0 && !selectedInput) {
             setSelectedInput(inputs[0].deviceId);
+          }
+           // Use default output if available and none selected
+          if (outputs.length > 0 && !selectedOutput) {
+             // Try to find the "default" one or just the first
+             const defaultOutput = outputs.find(d => d.deviceId === 'default') || outputs[0];
+             setSelectedOutput(defaultOutput.deviceId);
           }
         }
       } catch (e) {
@@ -349,6 +361,11 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
     }
   }, [inAudioRoom, leaveRoom, handleJoin]);
 
+  const switchOutput = useCallback((deviceId: string) => {
+      setSelectedOutput(deviceId);
+      // We don't need to rejoin for output, just state update which propagates to <ParticipantAudio>
+  }, []);
+
   return {
     inAudioRoom,
     participants,
@@ -357,7 +374,10 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
     leaveRoom,
     toggleMute,
     audioInputs,
+    audioOutputs,
     selectedInput,
-    switchDevice
+    selectedOutput,
+    switchDevice,
+    switchOutput
   };
 }

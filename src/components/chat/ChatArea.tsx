@@ -693,22 +693,42 @@ export function ChatArea({
           {/* Subtle green glow background */}
           <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
           
-          <div className="flex items-center gap-3 z-10">
-            <div className="relative flex items-center justify-center">
+          <div className="flex items-center gap-3 z-10 overflow-hidden">
+            <div className="relative flex items-center justify-center shrink-0">
                <span className="relative flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </span>
             </div>
-            <div className="flex flex-col">
-                <span className="text-xs font-semibold text-emerald-500 leading-none">Voice Connected</span>
-                <span className="text-[10px] text-muted-foreground leading-tight mt-0.5">As {profile.display_name?.split(' ')[0] || "You"}</span>
+            <div className="flex flex-col min-w-0">
+                <span className="text-xs font-semibold text-emerald-500 leading-none truncate">Voice Connected</span>
+                <span className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
+                  {(() => {
+                    const activeNames = participants
+                      .filter(p => p.user_id !== profile.user_id)
+                      .map(p => {
+                        const member = conversation.members.find(m => m.user_id === p.user_id);
+                        return getSenderName(member?.profile);
+                      });
+                    
+                    if (activeNames.length === 0) return "Just you";
+                    if (activeNames.length === 1) return `with ${activeNames[0]}`;
+                    if (activeNames.length === 2) return `with ${activeNames[0]} & ${activeNames[1]}`;
+                    return `with ${activeNames[0]}, ${activeNames[1]} +${activeNames.length - 2}`;
+                  })()}
+                </span>
             </div>
           </div>
-          <div className="flex items-center gap-1 z-10">
-            {/* Render remote audio streams (invisible) */}
+          <div className="flex items-center gap-1 z-10 shrink-0">
+            {/* Render remote audio streams (invisible UI) */}
             {participants.map(p => (
-              <ParticipantAudio key={p.user_id} userId={p.user_id} stream={p.stream} />
+              <ParticipantAudio 
+                key={p.user_id} 
+                userId={p.user_id} 
+                stream={p.stream} 
+                outputDeviceId={selectedInput || undefined} // Fallback if selectedOutput not explicitly passed to this component yet, or keep undefined if handled globally
+                showUI={false}
+              />
             ))}
 
             {/* Audio Device Selector - Dropdown */}

@@ -3,9 +3,11 @@ import { useEffect, useRef, useState } from "react";
 interface ParticipantAudioProps {
   stream?: MediaStream;
   userId?: string;
+  outputDeviceId?: string;
+  showUI?: boolean;
 }
 
-export function ParticipantAudio({ stream, userId }: ParticipantAudioProps) {
+export function ParticipantAudio({ stream, userId, outputDeviceId, showUI = false }: ParticipantAudioProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -69,6 +71,23 @@ export function ParticipantAudio({ stream, userId }: ParticipantAudioProps) {
     }
   }, [stream]);
 
+  // Handle output device switching
+  useEffect(() => {
+    if (audioRef.current && outputDeviceId) {
+        try {
+            // @ts-ignore - setSinkId is not yet in all TS definitions
+            if (typeof audioRef.current.setSinkId === 'function') {
+                // @ts-ignore
+                audioRef.current.setSinkId(outputDeviceId)
+                    .then(() => console.log(`Audio output switched to ${outputDeviceId}`))
+                    .catch((err: any) => console.warn("Failed to set audio output device", err));
+            }
+        } catch (e) {
+            console.warn("Error setting sinkId:", e);
+        }
+    }
+  }, [outputDeviceId]);
+
   const handlePlayPause = async () => {
     if (!audioRef.current) return;
     try {
@@ -97,6 +116,17 @@ export function ParticipantAudio({ stream, userId }: ParticipantAudioProps) {
   // Note: per-participant audio output selector removed to keep a single
   // live control per participant. Global output routing can be handled
   // elsewhere if needed.
+
+  if (!showUI) {
+      return (
+          <audio 
+            ref={audioRef} 
+            autoPlay 
+            playsInline 
+            className="hidden" 
+          />
+      );
+  }
 
   return (
     <div className="inline-flex items-center gap-2 px-2 py-1 bg-muted/50 rounded-md border border-border">
