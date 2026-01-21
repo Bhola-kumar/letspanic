@@ -447,27 +447,26 @@ export function ChatArea({
 
           {(conversation.is_group || conversation.is_channel) && (
              <div className="flex items-center gap-1">
-                {/* Invite Link Button */}
-                 <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleCopyInvite}>
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Copy Invite Link</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                {/* Add Member Button */}
-                <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
-                  <DialogTrigger asChild>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-9 w-9">
-                      <UserPlus className="h-4 w-4" />
+                      <MoreVertical className="h-4 w-4" />
                     </Button>
-                  </DialogTrigger>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleCopyInvite} className="cursor-pointer">
+                      <Copy className="h-4 w-4 mr-2" />
+                      <span>Copy Invite Link</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setAddMemberOpen(true)} className="cursor-pointer">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      <span>Add Member</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Add Member Dialog (Controlled by state) */}
+                <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
                   <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                       <DialogTitle>Add Member</DialogTitle>
