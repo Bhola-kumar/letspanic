@@ -99,7 +99,7 @@ export function useConversations(userId: string | undefined) {
     };
   }, [userId, fetchConversations]);
 
-  const createDirectChat = async (targetUserCode: string) => {
+  const createDirectChat = useCallback(async (targetUserCode: string) => {
     if (!userId) throw new Error("Not authenticated");
 
     const { data: targetProfile, error: profileError } = await supabase
@@ -162,13 +162,13 @@ export function useConversations(userId: string | undefined) {
 
     fetchConversations();
     return newConv;
-  };
+  }, [userId, fetchConversations]);
 
   const generateInviteCode = () => {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   };
 
-  const createGroup = async (name: string) => {
+  const createGroup = useCallback(async (name: string) => {
     if (!userId) throw new Error("Not authenticated");
 
     const { data: newConv, error: convError } = await supabase
@@ -193,9 +193,9 @@ export function useConversations(userId: string | undefined) {
 
     fetchConversations();
     return newConv;
-  };
+  }, [userId, fetchConversations]);
 
-  const createChannel = async (name: string, hasAudio: boolean = false) => {
+  const createChannel = useCallback(async (name: string, hasAudio: boolean = false) => {
     if (!userId) throw new Error("Not authenticated");
 
     const { data: newConv, error: convError } = await supabase
@@ -221,9 +221,9 @@ export function useConversations(userId: string | undefined) {
 
     fetchConversations();
     return newConv;
-  };
+  }, [userId, fetchConversations]);
 
-  const joinByCode = async (code: string) => {
+  const joinByCode = useCallback(async (code: string) => {
     if (!userId) throw new Error("Not authenticated");
 
     const { data: result, error: rpcError } = await supabase.rpc('join_group_by_code', {
@@ -255,9 +255,9 @@ export function useConversations(userId: string | undefined) {
 
     fetchConversations();
     return conv;
-  };
+  }, [userId, fetchConversations]);
 
-  const leaveConversation = async (conversationId: string) => {
+  const leaveConversation = useCallback(async (conversationId: string) => {
     if (!userId) throw new Error("Not authenticated");
 
     await supabase
@@ -267,17 +267,17 @@ export function useConversations(userId: string | undefined) {
       .eq("user_id", userId);
 
     fetchConversations();
-  };
+  }, [userId, fetchConversations]);
 
-  const deleteConversation = async (conversationId: string) => {
+  const deleteConversation = useCallback(async (conversationId: string) => {
     if (!userId) throw new Error("Not authenticated");
 
     await supabase.from("conversations").delete().eq("id", conversationId);
 
     fetchConversations();
-  };
+  }, [userId, fetchConversations]);
 
-  const markAsRead = async (conversationId: string) => {
+  const markAsRead = useCallback(async (conversationId: string) => {
     if (!userId) return;
 
     // Optimistic update
@@ -288,6 +288,13 @@ export function useConversations(userId: string | undefined) {
       return c;
     }));
 
+    // Use a unique toast ID or debounce? 
+    // Actually, optimistic update renders component -> triggers effect again? 
+    // Effect depends on [conversation.id, messages, messagesLoading, onMarkAsRead]
+    // If onMarkAsRead is stable (now it is via useCallback), effect ONLY runs on mount 
+    // OR when 'messages' reference changes.
+    // So if messages don't change, we are good.
+
     const { error } = await supabase.rpc('mark_conversation_read' as any, {
       p_conversation_id: conversationId
     });
@@ -295,8 +302,7 @@ export function useConversations(userId: string | undefined) {
     if (error) {
       console.error("Error marking conversation as read:", error);
     } 
-    // We rely on optimistic update + eventual consistency or realtime
-  };
+  }, [userId]);
 
   return {
     conversations,
