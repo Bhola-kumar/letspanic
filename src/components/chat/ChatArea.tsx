@@ -273,7 +273,7 @@ export function ChatArea({
 
   const renderMessage = (msg: MessageWithSender, showAvatar: boolean, isFirstInGroup: boolean) => {
     const isOwn = msg.sender_id === profile.user_id;
-    const showFile = msg.message_type !== "text" && msg.file_url;
+    const showFile = (msg.message_type !== "text" && msg.file_url) || msg.message_type === "system";
     const senderName = getSenderName(msg.sender);
 
     return (
@@ -353,9 +353,14 @@ export function ChatArea({
                                              data.status === 'declined' ? 'Call Declined' : 
                                              'Voice Call'}
                                         </span>
-                                        {data.duration && (
-                                            <span className="text-xs opacity-80">{data.duration}</span>
-                                        )}
+                                        <div className="flex items-center gap-2">
+                                            {data.duration && (
+                                                <span className="text-xs opacity-80">{data.duration}</span>
+                                            )}
+                                            <span className="text-[10px] opacity-60">
+                                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             );
@@ -370,11 +375,17 @@ export function ChatArea({
                             
                             const senderMember = conversation.members.find(m => m.user_id === msg.sender_id);
                             const senderName = isOwn ? "You" : getSenderName(senderMember?.profile);
+                            
+                            // Format time
+                            const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                             return (
-                                <div className="flex items-center justify-center gap-2 py-0.5 opacity-70">
-                                    <span className="text-xs italic">
+                                <div className="flex flex-col items-center justify-center gap-0.5 py-1 min-w-[200px] text-center">
+                                    <span className="text-xs italic text-muted-foreground">
                                        {senderName} {text}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground/70">
+                                        {time}
                                     </span>
                                 </div>
                             );

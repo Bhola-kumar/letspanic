@@ -11,6 +11,7 @@ interface UsernameSetupProps {
 
 export function UsernameSetup({ onComplete }: UsernameSetupProps) {
   const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState(""); // Add display name state
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [error, setError] = useState("");
@@ -61,11 +62,22 @@ export function UsernameSetup({ onComplete }: UsernameSetupProps) {
 
     setChecking(true);
     try {
-      const { error } = await supabase.rpc("update_username" as any, {
+      const { error: rpcError } = await supabase.rpc("update_username" as any, {
         username_input: username,
       });
 
-      if (error) throw error;
+      if (rpcError) throw rpcError;
+
+      // Also update display name
+      if (displayName.trim()) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+              await supabase
+                .from("profiles")
+                .update({ display_name: displayName.trim() })
+                .eq("user_id", user.id);
+          }
+      }
 
       toast({
         title: "Success",
@@ -88,17 +100,30 @@ export function UsernameSetup({ onComplete }: UsernameSetupProps) {
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-lg p-6 space-y-6">
         <div className="space-y-2 text-center">
-          <h2 className="text-2xl font-bold tracking-tight">Choose a Username</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Complete Profile</h2>
           <p className="text-muted-foreground">
-            Create a unique username to connect with others. This cannot be changed later.
+            Choose a unique username and a visible name to help others recognize you.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="username" className="text-sm font-medium">
-              Username
-            </label>
+            <div className="space-y-2">
+                <label htmlFor="displayName" className="text-sm font-medium">
+                  Visible Name
+                </label>
+                <Input
+                  id="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="e.g. John Doe"
+                  className="bg-transparent"
+                />
+            </div>
+
+            <div className="space-y-2">
+                <label htmlFor="username" className="text-sm font-medium">
+                  Username
+                </label>
             <div className="relative">
               <Input
                 id="username"
@@ -128,9 +153,9 @@ export function UsernameSetup({ onComplete }: UsernameSetupProps) {
           <Button 
             type="submit" 
             className="w-full" 
-            disabled={!username || !available || checking}
+            disabled={!username || !available || checking || !displayName.trim()}
           >
-            {checking ? "Saving..." : "Set Username"}
+            {checking ? "Saving..." : "Save Profile"}
           </Button>
         </form>
       </div>
