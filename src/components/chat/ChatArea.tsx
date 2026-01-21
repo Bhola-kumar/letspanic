@@ -599,12 +599,7 @@ export function ChatArea({
 
           {(conversation.is_group || conversation.is_channel) && (
             <Dialog open={showMembers} onOpenChange={setShowMembers}>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <Users className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="sm:max-w-[425px] w-[95vw]">
                 <DialogHeader>
                   <DialogTitle>Members ({conversation.members.length})</DialogTitle>
                   <DialogDescription>
