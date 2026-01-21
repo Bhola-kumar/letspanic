@@ -11,17 +11,45 @@ import { ChatArea } from "@/components/chat/ChatArea";
 import { EmptyState } from "@/components/chat/EmptyState";
 import { useToast } from "@/hooks/use-toast";
 
+import { CallOverlay } from "@/components/chat/CallOverlay";
+import { useCallSystem } from "@/hooks/useCallSystem";
+import { useVoiceRoom } from "@/hooks/useVoiceRoom";
+
 const Index = () => {
   const { user, profile, loading: authLoading, signInWithGoogle, signOut, updateProfile } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithDetails | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
-  
+
+  const {
+    callState,
+    callData,
+    initiateCall,
+    acceptCall,
+    declineCall,
+    cancelCall,
+    endCall
+  } = useCallSystem(user?.id, profile);
+
+  // We need to useVoiceRoom here to actually join/leave the room when call is accepted/ended
+  // But useVoiceRoom expects a single conversationId.
+  // We can pass the conversationId from callData.
+  const { joinRoom, leaveRoom, toggleMute, isMuted } = useVoiceRoom(callData?.conversationId || null, user?.id);
+
   usePresence(user?.id);
+
+  // Sync call state with voice room
+  useEffect(() => {
+    if (callState === 'connected') {
+      joinRoom();
+    } else if (callState === 'idle' || callState === 'ending') {
+      leaveRoom();
+    }
+  }, [callState, joinRoom, leaveRoom]);
 
   const {
     conversations,
-    loading: convsLoading,
+    loading: conversationsLoading,
     createDirectChat,
     createGroup,
     createChannel,
@@ -34,9 +62,9 @@ const Index = () => {
 
   const {
     messages,
-    loading: msgsLoading,
+    loading: messagesLoading,
     sendMessage,
-    sendFileMessage,
+    sendFileMessage: sendFile,
     deleteMessage,
   } = useMessages(selectedConversation?.id || null, user?.id);
 
@@ -72,9 +100,9 @@ const Index = () => {
               .select('display_name, email')
               .eq('user_id', payload.new.sender_id)
               .single();
-            
+
             const senderName = sender?.display_name || sender?.email?.split('@')[0] || 'Someone';
-            
+
             if ("Notification" in window && Notification.permission === "granted") {
               new Notification(`New message from ${senderName}`, {
                 body: payload.new.message_type === 'text' ? payload.new.content : `Sent a ${payload.new.message_type}`,
@@ -86,7 +114,7 @@ const Index = () => {
           } else if (isCurrentConv && !isHidden) {
             // We are looking at it, so we can mark as read immediately or let the ChatArea effect handle it.
             // But ChatArea effects depend on 'messages' changing.
-            // Since we are in the parent, we can just optionally refetch if needed, 
+            // Since we are in the parent, we can just optionally refetch if needed,
             // but useMessages inside ChatArea subscribes to its own messages, so UI updates automatically.
             // Just update unread counts (badges) globally if we were in another chat.
             if (!isCurrentConv) refetchConversations();
@@ -112,6 +140,30 @@ const Index = () => {
     }
   }, [conversations]);
 
+  // Check valid conversation
+  useEffect(() => {
+    const checkConversation = async () => {
+      if (selectedConversation) {
+        const { data: isValid } = await supabase
+          .rpc('is_conversation_member', {
+            _conversation_id: selectedConversation.id,
+            _user_id: user?.id
+          });
+
+        if (!isValid) {
+          setSelectedConversation(null);
+          toast({
+            title: "Access Denied",
+            description: "You are no longer a member of this conversation",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    checkConversation();
+  }, [selectedConversation?.id, user?.id]);
+
   // Detect mobile viewport to render a single-pane experience
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
@@ -134,36 +186,84 @@ const Index = () => {
   };
 
   const handleCreateDirectChat = async (code: string) => {
-    const conv = await createDirectChat(code);
-    const fullConv = conversations.find((c) => c.id === conv.id);
-    if (fullConv) setSelectedConversation(fullConv);
-    else {
-      await refetchConversations();
+    try {
+      const conv = await createDirectChat(code);
+      const fullConv = conversations.find((c) => c.id === conv.id);
+      if (fullConv) setSelectedConversation(fullConv);
+      else {
+        await refetchConversations();
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
   const handleCreateGroup = async (name: string) => {
-    await createGroup(name);
+    try {
+      await createGroup(name);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCreateChannel = async (name: string, hasAudio: boolean) => {
-    await createChannel(name, hasAudio);
+    try {
+      await createChannel(name, hasAudio);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleJoinByCode = async (code: string) => {
-    await joinByCode(code);
+    try {
+      await joinByCode(code);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleLeave = async () => {
     if (!selectedConversation) return;
-    await leaveConversation(selectedConversation.id);
-    setSelectedConversation(null);
+    try {
+      await leaveConversation(selectedConversation.id);
+      setSelectedConversation(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = async () => {
     if (!selectedConversation) return;
-    await deleteConversation(selectedConversation.id);
-    setSelectedConversation(null);
+    try {
+      await deleteConversation(selectedConversation.id);
+      setSelectedConversation(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSendMessage = async (content: string) => {
@@ -171,11 +271,19 @@ const Index = () => {
   };
 
   const handleSendFile = async (file: File, type: "image" | "file" | "video" | "audio") => {
-    await sendFileMessage(file, type);
+    await sendFile(file, type);
   };
 
   const handleDeleteMessage = async (id: string) => {
-    await deleteMessage(id);
+    try {
+      await deleteMessage(id);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   if (authLoading) {
@@ -193,11 +301,11 @@ const Index = () => {
   // Force username setup
   if (!profile.username) {
     return (
-      <UsernameSetup 
+      <UsernameSetup
         onComplete={() => {
            // Reload profile to reflect changes
-           window.location.reload(); 
-        }} 
+           window.location.reload();
+        }}
       />
     );
   }
@@ -208,6 +316,16 @@ const Index = () => {
   if (isMobile) {
     return (
       <div className="h-[100dvh] w-full flex overflow-hidden bg-background">
+         <CallOverlay
+          callState={callState}
+          callData={callData}
+          onAccept={acceptCall}
+          onDecline={declineCall}
+          onCancel={cancelCall}
+          onEnd={endCall}
+          isMuted={isMuted}
+          onToggleMute={toggleMute}
+        />
         {!selectedConversation ? (
           <Sidebar
             profile={profile}
@@ -224,7 +342,7 @@ const Index = () => {
           <ChatArea
             conversation={selectedConversation}
             messages={messages}
-            messagesLoading={msgsLoading}
+            messagesLoading={messagesLoading}
             profile={profile}
             onSendMessage={handleSendMessage}
             onSendFile={handleSendFile}
@@ -235,6 +353,7 @@ const Index = () => {
             onBack={() => setSelectedConversation(null)}
             onMarkAsRead={markAsRead}
             currentUserId={user.id}
+            onInitiateCall={initiateCall}
           />
         )}
       </div>
@@ -243,6 +362,16 @@ const Index = () => {
 
   return (
     <div className="h-[100dvh] flex overflow-hidden bg-background">
+      <CallOverlay
+          callState={callState}
+          callData={callData}
+          onAccept={acceptCall}
+          onDecline={declineCall}
+          onCancel={cancelCall}
+          onEnd={endCall}
+          isMuted={isMuted}
+          onToggleMute={toggleMute}
+        />
       <Sidebar
         profile={profile}
         conversations={conversations}
@@ -254,12 +383,12 @@ const Index = () => {
         onJoinByCode={handleJoinByCode}
         onSignOut={signOut}
       />
-      
+
       {selectedConversation ? (
         <ChatArea
           conversation={selectedConversation}
           messages={messages}
-          messagesLoading={msgsLoading}
+          messagesLoading={messagesLoading}
           profile={profile}
           onSendMessage={handleSendMessage}
           onSendFile={handleSendFile}
@@ -269,6 +398,7 @@ const Index = () => {
           isOwner={isOwner}
           onMarkAsRead={markAsRead}
           currentUserId={user.id}
+          onInitiateCall={initiateCall}
         />
       ) : (
         <EmptyState />

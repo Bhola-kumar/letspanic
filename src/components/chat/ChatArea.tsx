@@ -71,6 +71,7 @@ interface ChatAreaProps {
   onBack?: () => void;
   onMarkAsRead: (id: string) => Promise<void>;
   currentUserId: string;
+  onInitiateCall: (conversationId: string, targetUser: Profile) => Promise<void>;
 }
 
 export function ChatArea({
@@ -87,6 +88,7 @@ export function ChatArea({
   onBack,
   onMarkAsRead,
   currentUserId,
+  onInitiateCall,
 }: ChatAreaProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -489,20 +491,46 @@ export function ChatArea({
             </>
           )}
 
-          <Dialog open={showMembers} onOpenChange={setShowMembers}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9">
-                <Users className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Members ({conversation.members.length})</DialogTitle>
-                <DialogDescription>
-                  People in this conversation
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-2 max-h-80 overflow-y-auto">
+          {(!conversation.is_group && !conversation.is_channel) && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-9 w-9"
+                    onClick={async () => {
+                        const otherMember = conversation.members.find(m => m.user_id !== currentUserId);
+                        if (otherMember?.profile) {
+                            await onInitiateCall(conversation.id, otherMember.profile);
+                        }
+                    }}
+                  >
+                    <Phone className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Call</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {(conversation.is_group || conversation.is_channel) && (
+            <Dialog open={showMembers} onOpenChange={setShowMembers}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9">
+                  <Users className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Members ({conversation.members.length})</DialogTitle>
+                  <DialogDescription>
+                    People in this conversation
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
                 {conversation.members.map((member) => (
                   <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/50 transition-colors">
                     <div className="relative">
@@ -539,8 +567,9 @@ export function ChatArea({
                   </div>
                 ))}
               </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
