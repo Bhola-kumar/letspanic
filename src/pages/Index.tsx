@@ -132,7 +132,7 @@ const Index = () => {
   // Mobile: single-pane - show list first, then chat. Desktop: two-pane layout.
   if (isMobile) {
     return (
-      <div className="h-screen w-full flex overflow-hidden bg-background">
+      <div className="h-[100dvh] w-full flex overflow-hidden bg-background">
         {!selectedConversation ? (
           <Sidebar
             profile={profile}
@@ -165,7 +165,7 @@ const Index = () => {
   }
 
   return (
-    <div className="h-screen flex overflow-hidden bg-background">
+    <div className="h-[100dvh] flex overflow-hidden bg-background">
       <Sidebar
         profile={profile}
         conversations={conversations}

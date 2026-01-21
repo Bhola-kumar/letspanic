@@ -370,9 +370,9 @@ export function ChatArea({
   const messagesWithDates = getMessagesWithDates();
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background">
+    <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
       {/* Header - Compact */}
-      <div className="h-14 px-4 flex items-center justify-between border-b border-border/50 bg-card/80 backdrop-blur-xl sticky top-0 z-10">
+      <div className="flex-none h-14 px-4 flex items-center justify-between border-b border-border/50 bg-card/80 backdrop-blur-xl z-20">
         <div className="flex items-center gap-3">
           {/* Mobile back button (only shown when onBack provided) */}
           {typeof onBack === "function" && (
@@ -549,7 +549,7 @@ export function ChatArea({
 
       {/* Audio Room Indicator */}
       {inAudioRoom && (
-        <div className="px-6 py-3 bg-success/10 border-b border-success/20 flex items-center justify-between backdrop-blur-sm">
+        <div className="flex-none px-6 py-3 bg-success/10 border-b border-success/20 flex items-center justify-between backdrop-blur-sm z-10">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-3 h-3 bg-success rounded-full" />
@@ -594,7 +594,7 @@ export function ChatArea({
 
       {/* Flash Mode Indicator */}
       {isFlashMode && (
-        <div className="px-6 py-2 bg-warning/10 border-b border-warning/20 flex items-center justify-between backdrop-blur-sm">
+        <div className="flex-none px-6 py-2 bg-warning/10 border-b border-warning/20 flex items-center justify-between backdrop-blur-sm z-10">
           <div className="flex items-center gap-3">
             <div className="relative">
               <Zap className="w-4 h-4 text-warning" />
@@ -615,7 +615,8 @@ export function ChatArea({
         </div>
       )}
 
-      <ScrollArea className="flex-1 scrollbar-thin">
+      <div className="flex-1 min-h-0 overflow-hidden relative">
+        <ScrollArea className="h-full scrollbar-thin">
         <div className="p-4 max-w-3xl mx-auto flex flex-col">
           {isFlashMode ? (
             // Flash Mode Messages
@@ -751,9 +752,10 @@ export function ChatArea({
           <div ref={scrollRef} />
         </div>
       </ScrollArea>
+      </div>
 
       {/* Input - Compact */}
-      <div className={`relative p-3 border-t backdrop-blur-xl ${isFlashMode ? "border-warning/20 bg-warning/5" : "border-border/50 bg-card/40"}`}>
+      <div className={`flex-none relative p-3 border-t backdrop-blur-xl z-20 ${isFlashMode ? "border-warning/20 bg-warning/5" : "border-border/50 bg-card/40"}`}>
         {/* Live Transcript Overlay */}
         {inAudioRoom && (
           <div className="absolute bottom-full left-0 right-0 px-4 pb-2 pointer-events-none flex justify-center">

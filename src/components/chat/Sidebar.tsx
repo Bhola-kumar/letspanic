@@ -143,117 +143,120 @@ export function Sidebar({
   };
 
   return (
-    <div className="w-full md:w-80 h-full bg-sidebar flex flex-col md:border-r border-sidebar-border">
-      {/* Header - Compact */}
-      <div className="p-3 border-b border-sidebar-border/50">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/60 rounded-lg flex items-center justify-center shadow-md shadow-primary/20">
-              <MessageCircle className="w-4 h-4 text-primary-foreground" />
+    <div className="w-full md:w-80 h-full bg-sidebar flex flex-col md:border-r border-sidebar-border overflow-hidden">
+      {/* Header Section - Fixed at top */}
+      <div className="flex-none bg-sidebar z-10">
+        {/* Header - Compact */}
+        <div className="p-3 border-b border-sidebar-border/50">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/60 rounded-lg flex items-center justify-center shadow-md shadow-primary/20">
+                <MessageCircle className="w-4 h-4 text-primary-foreground" />
+              </div>
+              <span className="font-display font-semibold text-base tracking-tight">Lets Panic</span>
             </div>
-            <span className="font-display font-semibold text-base tracking-tight">Lets Panic</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="glass-card">
+                <DropdownMenuItem onClick={handleCopyCode} className="gap-2 cursor-pointer">
+                  {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                  Copy code: {profile.user_code}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onSignOut} className="text-destructive gap-2 cursor-pointer">
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="glass-card">
-              <DropdownMenuItem onClick={handleCopyCode} className="gap-2 cursor-pointer">
-                {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-                Copy code: {profile.user_code}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onSignOut} className="text-destructive gap-2 cursor-pointer">
-                <LogOut className="h-3.5 w-3.5" />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
 
-        {/* Search - Compact */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 bg-sidebar-accent/50 border-sidebar-border/50 rounded-md h-8 text-xs focus-visible:ring-1"
-          />
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 bg-sidebar-accent/50 border-sidebar-border/50 rounded-md h-8 text-xs focus-visible:ring-1"
+            />
+          </div>
+        </div>
+        {/* Action Buttons - Compact */}
+        <div className="p-2 px-3 flex gap-2">
+          <Dialog open={dialogOpen === "direct"} onOpenChange={(o) => setDialogOpen(o ? "direct" : null)}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5 shadow-sm">
+                <UserPlus className="h-3.5 w-3.5" />
+                New Chat
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="glass-card">
+              <DialogHeader>
+                <DialogTitle>Start a new chat</DialogTitle>
+                <DialogDescription>
+                  Enter the user code of the person you want to chat with
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <Input
+                  placeholder="Enter user code (e.g., A1B2C3D4)"
+                  value={newChatCode}
+                  onChange={(e) => setNewChatCode(e.target.value.toUpperCase())}
+                  className="uppercase font-mono tracking-wider glass-input"
+                />
+                <Button
+                  onClick={() => handleAction(() => onCreateDirectChat(newChatCode))}
+                  disabled={!newChatCode || loading}
+                  className="w-full"
+                >
+                  {loading ? "Finding user..." : "Start Chat"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={dialogOpen === "join"} onOpenChange={(o) => setDialogOpen(o ? "join" : null)}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5 shadow-sm">
+                <Plus className="h-3.5 w-3.5" />
+                Join
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="glass-card">
+              <DialogHeader>
+                <DialogTitle>Join with invite code</DialogTitle>
+                <DialogDescription>
+                  Enter an invite code to join a group or channel
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <Input
+                  placeholder="Enter invite code"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  className="uppercase font-mono tracking-wider glass-input"
+                />
+                <Button
+                  onClick={() => handleAction(() => onJoinByCode(joinCode))}
+                  disabled={!joinCode || loading}
+                  className="w-full"
+                >
+                  {loading ? "Joining..." : "Join"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      {/* Action Buttons - Compact */}
-      <div className="p-2 px-3 flex gap-2">
-        <Dialog open={dialogOpen === "direct"} onOpenChange={(o) => setDialogOpen(o ? "direct" : null)}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5 shadow-sm">
-              <UserPlus className="h-3.5 w-3.5" />
-              New Chat
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="glass-card">
-            <DialogHeader>
-              <DialogTitle>Start a new chat</DialogTitle>
-              <DialogDescription>
-                Enter the user code of the person you want to chat with
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <Input
-                placeholder="Enter user code (e.g., A1B2C3D4)"
-                value={newChatCode}
-                onChange={(e) => setNewChatCode(e.target.value.toUpperCase())}
-                className="uppercase font-mono tracking-wider glass-input"
-              />
-              <Button
-                onClick={() => handleAction(() => onCreateDirectChat(newChatCode))}
-                disabled={!newChatCode || loading}
-                className="w-full"
-              >
-                {loading ? "Finding user..." : "Start Chat"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={dialogOpen === "join"} onOpenChange={(o) => setDialogOpen(o ? "join" : null)}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5 shadow-sm">
-              <Plus className="h-3.5 w-3.5" />
-              Join
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="glass-card">
-            <DialogHeader>
-              <DialogTitle>Join with invite code</DialogTitle>
-              <DialogDescription>
-                Enter an invite code to join a group or channel
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <Input
-                placeholder="Enter invite code"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                className="uppercase font-mono tracking-wider glass-input"
-              />
-              <Button
-                onClick={() => handleAction(() => onJoinByCode(joinCode))}
-                disabled={!joinCode || loading}
-                className="w-full"
-              >
-                {loading ? "Joining..." : "Join"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <ScrollArea className="flex-1 scrollbar-thin">
-        <div className="p-2 space-y-6">
+      {/* Scrollable Center Section */}
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full scrollbar-thin" scrollable="true">
+          <div className="p-2 space-y-6">
           {/* Direct Messages */}
           <div>
             <div className="flex items-center justify-between px-3 mb-2">
@@ -429,12 +432,13 @@ export function Sidebar({
                 </p>
               )}
             </div>
+            </div>
           </div>
-        </div>
-      </ScrollArea>
+        </ScrollArea>
+      </div>
 
-      {/* User Profile - Compact */}
-      <div className="p-2 border-t border-sidebar-border bg-sidebar-accent/30">
+      {/* User Profile - Fixed at bottom */}
+      <div className="flex-none p-2 border-t border-sidebar-border bg-sidebar-accent/30 z-10">
         <div className="flex items-center gap-2 px-1">
           <div className="relative">
             <Avatar className="h-8 w-8 ring-1 ring-primary/20">
