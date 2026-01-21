@@ -17,11 +17,28 @@ export function useAuth() {
         
         if (session?.user) {
           setTimeout(async () => {
-            const { data } = await supabase
+            let { data } = await supabase
               .from("profiles")
               .select("*")
               .eq("user_id", session.user.id)
-              .single();
+              .maybeSingle();
+
+            if (!data) {
+                // Profile missing (e.g. wiped DB), recreate it
+                const { data: newProfile, error } = await supabase
+                    .from("profiles")
+                    .insert({ 
+                        user_id: session.user.id,
+                        email: session.user.email,
+                        // Add default fields if needed, e.g. username from email or null?
+                        // Let's assume UsernameSetup will handle username later if null.
+                    })
+                    .select()
+                    .single();
+                
+                if (!error) data = newProfile;
+            }
+
             setProfile(data as Profile | null);
           }, 0);
         } else {
@@ -39,9 +56,22 @@ export function useAuth() {
           .from("profiles")
           .select("*")
           .eq("user_id", session.user.id)
-          .single()
-          .then(({ data }) => {
-            setProfile(data as Profile | null);
+          .maybeSingle()
+          .then(async ({ data }) => {
+            if (!data) {
+                // Profile missing, recreate
+                 const { data: newProfile } = await supabase
+                    .from("profiles")
+                    .insert({ 
+                        user_id: session.user.id,
+                        email: session.user.email,
+                    })
+                    .select()
+                    .single();
+                 setProfile(newProfile as Profile | null);
+            } else {
+                setProfile(data as Profile | null);
+            }
             setLoading(false);
           });
       } else {
