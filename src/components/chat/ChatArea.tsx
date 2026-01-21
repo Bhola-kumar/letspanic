@@ -393,8 +393,8 @@ export function ChatArea({
               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[hsl(var(--online))] rounded-full ring-2 ring-background" />
             )}
           </div>
-          <div className="flex flex-col">
-            <h2 className="font-semibold text-sm leading-none mb-0.5">{getConversationTitle()}</h2>
+          <div className="flex flex-col min-w-0">
+            <h2 className="font-semibold text-sm leading-none mb-0.5 truncate max-w-[100px] xs:max-w-[150px] sm:max-w-none">{getConversationTitle()}</h2>
             {conversation.is_group || conversation.is_channel ? (
               <p className="text-[10px] text-muted-foreground">
                 {conversation.members.length} member{conversation.members.length !== 1 ? "s" : ""}
@@ -410,7 +410,7 @@ export function ChatArea({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* Flash Mode Toggle */}
           <TooltipProvider>
             <Tooltip>
@@ -456,10 +456,10 @@ export function ChatArea({
                   variant="default"
                   size="sm"
                   onClick={() => joinRoom(selectedInput || undefined)}
-                  className="gap-2"
+                  className="gap-2 px-2 sm:px-3"
                 >
                   <Phone className="h-4 w-4" />
-                  Join Voice
+                  <span className="hidden sm:inline">Join Voice</span>
                 </Button>
               )}
             </>
