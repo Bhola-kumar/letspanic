@@ -82,7 +82,7 @@ interface ChatAreaProps {
   audioInputs: MediaDeviceInfo[];
   selectedInput: string | null;
   onSwitchDevice: (deviceId: string) => void;
-  joinRoom: (deviceId?: string) => Promise<void>;
+  joinRoom: (deviceId?: string, overrideConversationId?: string) => Promise<void>;
   onAddMember: (conversationId: string, username: string) => Promise<void>;
 }
 
@@ -533,7 +533,7 @@ export function ChatArea({
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => joinRoom(selectedInput || undefined)}
+                  onClick={() => joinRoom(selectedInput || undefined, conversation.id)}
                   className="gap-2 px-2 sm:px-3"
                 >
                   <Phone className="h-4 w-4" />

@@ -320,6 +320,20 @@ const Index = () => {
     }
   };
 
+  const handleAddMember = async (conversationId: string, username: string) => {
+    try {
+        if (addMemberByUsername) {
+            await addMemberByUsername(conversationId, username);
+        }
+    } catch (error: any) {
+        toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive",
+        });
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

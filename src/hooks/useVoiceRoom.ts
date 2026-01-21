@@ -14,6 +14,14 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [selectedInput, setSelectedInput] = useState<string | null>(null);
+  
+  // Track the current active room ID (either from prop or manual join)
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(conversationId);
+
+  // Sync prop changes to active room, but only if we aren't manually joined to another?
+  useEffect(() => {
+    if (conversationId) setActiveRoomId(conversationId);
+  }, [conversationId]);
 
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
   const iceCandidatesQueue = useRef<Record<string, RTCIceCandidateInit[]>>({});
@@ -53,6 +61,10 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
       try { supabase.removeChannel(channelRef.current); } catch (e) { console.warn(e); }
       channelRef.current = null;
     }
+    
+    // Only reset inAudioRoom if we are fully cleaning up (not just switching)
+    // But cleanup is called on unmount too.
+    setInAudioRoom(false);
   }, []);
 
   const addIceCandidate = useCallback(async (senderId: string, candidate: RTCIceCandidateInit) => {
@@ -154,15 +166,15 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
     return pc;
   }, [userId]);
 
-  const initChannel = useCallback((stream: MediaStream | null) => {
-    if (!conversationId || !userId) return null;
-    console.log("Initializing voice channel for conversation:", conversationId);
+  const initChannel = useCallback((stream: MediaStream | null, targetRoomId: string) => {
+    if (!targetRoomId || !userId) return null;
+    console.log("Initializing voice channel for conversation:", targetRoomId);
 
     if (channelRef.current) {
         try { supabase.removeChannel(channelRef.current); } catch (e) {}
     }
 
-    const channel = supabase.channel(`voice-${conversationId}`, { 
+    const channel = supabase.channel(`voice-${targetRoomId}`, { 
         config: { broadcast: { self: false } } 
     });
 
@@ -225,16 +237,16 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
         console.log(`Voice channel status: ${status}`);
         if (status === "SUBSCRIBED") {
           console.log("Broadcasting join-request...");
-          reconnectAttempts.current[conversationId!] = 0;
+          reconnectAttempts.current[targetRoomId] = 0;
           channel.send({ type: "broadcast", event: "join-request", payload: { sender: userId } });
         } else if (status === "CLOSED") {
-            console.error("Voice channel closed for conversation:", conversationId);
-            const attempts = reconnectAttempts.current[conversationId!] || 0;
+            console.error("Voice channel closed for conversation:", targetRoomId);
+            const attempts = reconnectAttempts.current[targetRoomId] || 0;
             if (attempts < 3) {
-              reconnectAttempts.current[conversationId!] = attempts + 1;
-              reconnectTimer.current[conversationId!] = setTimeout(() => {
-                console.log("Attempting to re-init voice channel", conversationId);
-                initChannel(localStreamRef.current);
+              reconnectAttempts.current[targetRoomId] = attempts + 1;
+              reconnectTimer.current[targetRoomId] = setTimeout(() => {
+                console.log("Attempting to re-init voice channel", targetRoomId);
+                initChannel(localStreamRef.current, targetRoomId);
               }, 1500 * (attempts + 1));
             }
         }
@@ -242,10 +254,20 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
 
     channelRef.current = channel;
     return channel;
-  }, [conversationId, userId, createPeerConnection, addIceCandidate, processIceQueue]);
+  }, [userId, createPeerConnection, addIceCandidate, processIceQueue]);
 
-  const handleJoin = useCallback(async (deviceId?: string) => {
-    if (!conversationId || !userId) return;
+  const handleJoin = useCallback(async (deviceId?: string, overrideRoomId?: string) => {
+    const targetId = overrideRoomId || activeRoomId;
+    
+    if (!targetId || !userId) {
+        console.warn("Cannot join room: Missing conversation ID or User ID", { targetId, userId });
+        return;
+    }
+
+    // If switching rooms, update active ID
+    if (overrideRoomId && overrideRoomId !== activeRoomId) {
+        setActiveRoomId(overrideRoomId);
+    }
 
     try {
       console.log("Requesting microphone access...");
@@ -255,10 +277,11 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setLocalStream(stream);
       localStreamRef.current = stream;
+      // Do not setInAudioRoom(true) yet? No, we should.
       setInAudioRoom(true);
       console.log("Microphone access granted.");
 
-      initChannel(stream);
+      initChannel(stream, targetId);
 
     } catch (error: any) {
       console.error("Error joining voice room:", error);
@@ -268,7 +291,7 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
         variant: "destructive" 
       });
     }
-  }, [conversationId, userId, initChannel, toast]);
+  }, [activeRoomId, userId, initChannel, toast]);
 
   const toggleMute = useCallback(() => {
     if (localStreamRef.current) {
@@ -286,7 +309,6 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
       channelRef.current.send({ type: "broadcast", event: "leave", payload: { sender: userId } });
     }
     cleanup();
-    setInAudioRoom(false);
   }, [userId, cleanup]);
 
   useEffect(() => {
