@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -44,6 +45,7 @@ import {
   ArrowLeft,
   Zap,
   ZapOff,
+  Settings,
 } from "lucide-react";
 import type { Profile } from "@/lib/supabase";
 import type { ConversationWithDetails } from "@/hooks/useConversations";
@@ -445,67 +447,95 @@ export function ChatArea({
             </Tooltip>
           </TooltipProvider>
 
-          {(conversation.is_group || conversation.is_channel) && (
-             <div className="flex items-center gap-1">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleCopyInvite} className="cursor-pointer">
-                      <Copy className="h-4 w-4 mr-2" />
-                      <span>Copy Invite Link</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setAddMemberOpen(true)} className="cursor-pointer">
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      <span>Add Member</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+          {/* Dialogs for Actions */}
+          <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+             <DialogContent className="sm:max-w-md">
+                   <DialogHeader>
+                     <DialogTitle>Add Member</DialogTitle>
+                     <DialogDescription>
+                       Enter the username of the person you want to add.
+                     </DialogDescription>
+                   </DialogHeader>
+                   <div className="flex items-center space-x-2">
+                       <Input
+                         placeholder="Username"
+                         value={newMemberUsername}
+                         onChange={(e) => setNewMemberUsername(e.target.value)}
+                       />
+                       <Button 
+                           type="button" 
+                           size="sm" 
+                           className="px-3"
+                           disabled={!newMemberUsername || addingMember}
+                           onClick={async () => {
+                               setAddingMember(true);
+                               try {
+                                   await onAddMember(conversation.id, newMemberUsername);
+                                   setAddMemberOpen(false);
+                                   setNewMemberUsername("");
+                                   toast({ title: "Success", description: "User added to the room" });
+                               } catch (e: any) {
+                                   toast({ title: "Error", description: e.message, variant: "destructive" });
+                               } finally {
+                                   setAddingMember(false);
+                               }
+                           }}
+                       >
+                           {addingMember ? "Adding..." : "Add"}
+                       </Button>
+                   </div>
+             </DialogContent>
+          </Dialog>
 
-                {/* Add Member Dialog (Controlled by state) */}
-                <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Add Member</DialogTitle>
-                      <DialogDescription>
-                        Enter the username of the person you want to add.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex items-center space-x-2">
-                        <Input
-                          placeholder="Username"
-                          value={newMemberUsername}
-                          onChange={(e) => setNewMemberUsername(e.target.value)}
-                        />
-                        <Button 
-                            type="button" 
-                            size="sm" 
-                            className="px-3"
-                            disabled={!newMemberUsername || addingMember}
-                            onClick={async () => {
-                                setAddingMember(true);
-                                try {
-                                    await onAddMember(conversation.id, newMemberUsername);
-                                    setAddMemberOpen(false);
-                                    setNewMemberUsername("");
-                                    toast({ title: "Success", description: "User added to the room" });
-                                } catch (e: any) {
-                                    toast({ title: "Error", description: e.message, variant: "destructive" });
-                                } finally {
-                                    setAddingMember(false);
-                                }
-                            }}
-                        >
-                            {addingMember ? "Adding..." : "Add"}
-                        </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-             </div>
-          )}
+          {(conversation.is_group || conversation.is_channel) && (
+             <Dialog open={showMembers} onOpenChange={setShowMembers}>
+               <DialogContent className="max-w-md">
+                 <DialogHeader>
+                   <DialogTitle>Members ({conversation.members.length})</DialogTitle>
+                   <DialogDescription>
+                     People in this conversation
+                   </DialogDescription>
+                 </DialogHeader>
+                 <div className="space-y-2 max-h-80 overflow-y-auto">
+                 {conversation.members.map((member) => (
+                   <div key={member.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/50 transition-colors">
+                     <div className="relative">
+                       <Avatar className="h-10 w-10">
+                         <AvatarImage src={member.profile?.avatar_url || undefined} />
+                         <AvatarFallback className="bg-secondary">
+                           {getInitials(getSenderName(member.profile))}
+                         </AvatarFallback>
+                       </Avatar>
+                       {member.profile?.is_online && (
+                         <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[hsl(var(--online))] rounded-full ring-2 ring-background" />
+                       )}
+                     </div>
+                     <div className="flex-1 min-w-0">
+                       <p className="font-medium truncate">
+                         {getSenderName(member.profile)}
+                         {member.user_id === profile.user_id && (
+                           <span className="text-muted-foreground text-xs ml-2">(You)</span>
+                         )}
+                       </p>
+                       <div className="flex items-center gap-2">
+                         <span className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-secondary rounded">
+                           {member.role}
+                         </span>
+                         {member.profile && (
+                           <OnlineStatus 
+                             isOnline={member.profile.is_online || false} 
+                             lastSeen={member.profile.last_seen}
+                             showText={!member.profile.is_online}
+                           />
+                         )}
+                       </div>
+                     </div>
+                   </div>
+                 ))}
+                 </div>
+               </DialogContent>
+             </Dialog>
+           )}
 
           {conversation.has_audio && (
             <>
@@ -630,10 +660,20 @@ export function ChatArea({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {(conversation.is_group || conversation.is_channel) && (
-                <DropdownMenuItem onClick={handleCopyInvite} className="gap-2">
-                  <Copy className="h-4 w-4" />
-                  Copy invite: {conversation.invite_code}
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={handleCopyInvite} className="gap-2 cursor-pointer">
+                    <Copy className="h-4 w-4" />
+                    <span>Copy Invite Link</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setAddMemberOpen(true)} className="gap-2 cursor-pointer">
+                    <UserPlus className="h-4 w-4" />
+                    <span>Add Member</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowMembers(true)} className="gap-2 cursor-pointer">
+                    <Users className="h-4 w-4" />
+                    <span>View Members ({conversation.members.length})</span>
+                  </DropdownMenuItem>
+                </>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onLeave} className="text-warning gap-2">
@@ -652,44 +692,58 @@ export function ChatArea({
       </div>
 
       {/* Audio Room Indicator */}
+      {/* Audio Room Indicator */}
       {inAudioRoom && (
-        <div className="flex-none px-6 py-3 bg-success/10 border-b border-success/20 flex items-center justify-between backdrop-blur-sm z-10">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-3 h-3 bg-success rounded-full" />
-              <div className="absolute inset-0 w-3 h-3 bg-success rounded-full animate-pulse-ring" />
+        <div className="flex-none h-12 px-4 bg-[hsl(var(--card))] border-b border-[hsl(var(--border))] flex items-center justify-between backdrop-blur-sm z-10 animate-fade-in relative overflow-hidden">
+          {/* Subtle green glow background */}
+          <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
+          
+          <div className="flex items-center gap-3 z-10">
+            <div className="relative flex items-center justify-center">
+               <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
             </div>
-            <span className="text-sm text-success font-medium">
-              Connected to voice channel
-            </span>
+            <div className="flex flex-col">
+                <span className="text-xs font-semibold text-emerald-500 leading-none">Voice Connected</span>
+                <span className="text-[10px] text-muted-foreground leading-tight mt-0.5">As {profile.display_name?.split(' ')[0] || "You"}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            {/* Render remote audio streams */}
+          <div className="flex items-center gap-1 z-10">
+            {/* Render remote audio streams (invisible) */}
             {participants.map(p => (
               <ParticipantAudio key={p.user_id} userId={p.user_id} stream={p.stream} />
             ))}
 
-            {/* Audio input selector shown while in the room */}
+            {/* Audio Device Selector - Dropdown */}
             {audioInputs.length > 0 && (
-              <select
-                value={selectedInput || ""}
-                onChange={(e) => onSwitchDevice(e.target.value)}
-                className="text-sm bg-background border rounded px-2 py-1"
-              >
-                {audioInputs.map(d => (
-                  <option key={d.deviceId} value={d.deviceId}>{d.label || d.deviceId}</option>
-                ))}
-              </select>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                            <Settings className="h-4 w-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuLabel>Microphone</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {audioInputs.map(d => (
+                            <DropdownMenuItem key={d.deviceId} onClick={() => onSwitchDevice(d.deviceId)} className="flex items-center justify-between cursor-pointer">
+                                <span className="truncate text-xs">{d.label || "Microphone " + d.deviceId.slice(0, 4)}</span>
+                                {selectedInput === d.deviceId && <span className="text-emerald-500 text-xs ml-2">✓</span>}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             )}
 
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={leaveRoom}
-              className="text-success hover:text-success hover:bg-success/20"
+              className="h-8 w-8 bg-destructive/10 text-destructive hover:bg-destructive/20 ml-1 rounded-full"
             >
-              <X className="h-4 w-4 mr-1" />
-              Disconnect
+              <PhoneOff className="h-4 w-4" />
             </Button>
           </div>
 
