@@ -72,6 +72,16 @@ interface ChatAreaProps {
   onMarkAsRead: (id: string) => Promise<void>;
   currentUserId: string;
   onInitiateCall: (conversationId: string, targetUser: Profile) => Promise<void>;
+  // Voice Room Props
+  inAudioRoom: boolean;
+  participants: any[]; // Participant type is not exported, using any for now or need export
+  isMuted: boolean;
+  toggleMute: () => void;
+  leaveRoom: () => void;
+  audioInputs: MediaDeviceInfo[];
+  selectedInput: string | null;
+  onSwitchDevice: (deviceId: string) => void;
+  joinRoom: (deviceId?: string) => Promise<void>;
 }
 
 export function ChatArea({
@@ -89,19 +99,22 @@ export function ChatArea({
   onMarkAsRead,
   currentUserId,
   onInitiateCall,
+  inAudioRoom,
+  participants,
+  isMuted,
+  toggleMute,
+  leaveRoom,
+  audioInputs,
+  selectedInput,
+  onSwitchDevice,
+  joinRoom,
 }: ChatAreaProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [isFlashMode, setIsFlashMode] = useState(false);
-  const { 
-    inAudioRoom, 
-    participants, 
-    isMuted, 
-    joinRoom, 
-    leaveRoom, 
-    toggleMute 
-  } = useVoiceRoom(conversation.id, profile.user_id);
+  
+  // Removed local useVoiceRoom hook to use parent state
 
   const { current: liveTranscript, isFinal: liveIsFinal, supported: transcriptionSupported } = useTranscription(inAudioRoom);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -128,36 +141,6 @@ export function ChatArea({
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, typingUsers, flashMessages]);
-
-  // Microphone device selection for joining voice
-  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
-  const [selectedInput, setSelectedInput] = useState<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    const loadDevices = async () => {
-      try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-          console.warn("Media devices not supported in this environment");
-          return;
-        }
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const inputs = devices.filter(d => d.kind === "audioinput");
-        if (!mounted) return;
-        setAudioInputs(inputs);
-        if (inputs.length && !selectedInput) setSelectedInput(inputs[0].deviceId);
-      } catch (e) {
-        console.warn("Could not enumerate media devices:", e);
-      }
-    };
-    loadDevices();
-    const onChange = () => loadDevices();
-    navigator.mediaDevices?.addEventListener("devicechange", onChange);
-    return () => {
-      mounted = false;
-      navigator.mediaDevices?.removeEventListener("devicechange", onChange);
-    };
-  }, [selectedInput]);
 
   // Clear flash messages when switching conversations
   // Clear flash messages when switching conversations
@@ -622,7 +605,7 @@ export function ChatArea({
             {audioInputs.length > 0 && (
               <select
                 value={selectedInput || ""}
-                onChange={(e) => setSelectedInput(e.target.value || null)}
+                onChange={(e) => onSwitchDevice(e.target.value)}
                 className="text-sm bg-background border rounded px-2 py-1"
               >
                 {audioInputs.map(d => (

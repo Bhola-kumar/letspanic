@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CallOverlay } from "@/components/chat/CallOverlay";
 import { useCallSystem } from "@/hooks/useCallSystem";
 import { useVoiceRoom } from "@/hooks/useVoiceRoom";
+import { ParticipantAudio } from "@/components/chat/ParticipantAudio";
 
 const Index = () => {
   const { user, profile, loading: authLoading, signInWithGoogle, signOut, updateProfile } = useAuth();
@@ -34,7 +35,17 @@ const Index = () => {
   // We need to useVoiceRoom here to actually join/leave the room when call is accepted/ended
   // But useVoiceRoom expects a single conversationId.
   // We can pass the conversationId from callData.
-  const { joinRoom, leaveRoom, toggleMute, isMuted } = useVoiceRoom(callData?.conversationId || null, user?.id);
+  const { 
+    joinRoom, 
+    leaveRoom, 
+    toggleMute, 
+    isMuted, 
+    inAudioRoom, 
+    participants, 
+    audioInputs, 
+    selectedInput, 
+    switchDevice 
+  } = useVoiceRoom(callData?.conversationId || null, user?.id);
 
   usePresence(user?.id);
 
@@ -326,6 +337,11 @@ const Index = () => {
           isMuted={isMuted}
           onToggleMute={toggleMute}
         />
+        {/* Global Audio Rendering */}
+        {participants.map((p: any) => (
+          <ParticipantAudio key={p.user_id} userId={p.user_id} stream={p.stream} />
+        ))}
+
         {!selectedConversation ? (
           <Sidebar
             profile={profile}
@@ -354,6 +370,15 @@ const Index = () => {
             onMarkAsRead={markAsRead}
             currentUserId={user.id}
             onInitiateCall={initiateCall}
+            inAudioRoom={inAudioRoom}
+            participants={participants}
+            isMuted={isMuted}
+            toggleMute={toggleMute}
+            leaveRoom={leaveRoom}
+            audioInputs={audioInputs}
+            selectedInput={selectedInput}
+            onSwitchDevice={switchDevice}
+            joinRoom={joinRoom}
           />
         )}
       </div>
@@ -399,6 +424,15 @@ const Index = () => {
           onMarkAsRead={markAsRead}
           currentUserId={user.id}
           onInitiateCall={initiateCall}
+          inAudioRoom={inAudioRoom}
+          participants={participants}
+          isMuted={isMuted}
+          toggleMute={toggleMute}
+          joinRoom={joinRoom}
+          leaveRoom={leaveRoom}
+          audioInputs={audioInputs}
+          selectedInput={selectedInput}
+          onSwitchDevice={switchDevice}
         />
       ) : (
         <EmptyState />

@@ -12,6 +12,8 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [selectedInput, setSelectedInput] = useState<string | null>(null);
 
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({});
   const iceCandidatesQueue = useRef<Record<string, RTCIceCandidateInit[]>>({});
@@ -288,8 +290,42 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
   }, [userId, cleanup]);
 
   useEffect(() => {
+    let mounted = true;
+    const loadDevices = async () => {
+      try {
+        if (!navigator.mediaDevices?.enumerateDevices) return;
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter(d => d.kind === "audioinput");
+        if (mounted) {
+          setAudioInputs(inputs);
+          if (inputs.length > 0 && !selectedInput) {
+            setSelectedInput(inputs[0].deviceId);
+          }
+        }
+      } catch (e) {
+        console.error("Error loading devices", e);
+      }
+    };
+    loadDevices();
+    navigator.mediaDevices?.addEventListener('devicechange', loadDevices);
+    return () => {
+      mounted = false;
+      navigator.mediaDevices?.removeEventListener('devicechange', loadDevices);
+    };
+  }, [selectedInput]);
+
+  useEffect(() => {
     return () => cleanup();
   }, [cleanup]);
+
+  const switchDevice = useCallback(async (deviceId: string) => {
+    setSelectedInput(deviceId);
+    if (inAudioRoom) {
+      // Re-join with new device
+      leaveRoom();
+      setTimeout(() => handleJoin(deviceId), 100);
+    }
+  }, [inAudioRoom, leaveRoom, handleJoin]);
 
   return {
     inAudioRoom,
@@ -297,6 +333,9 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
     isMuted,
     joinRoom: handleJoin,
     leaveRoom,
-    toggleMute
+    toggleMute,
+    audioInputs,
+    selectedInput,
+    switchDevice
   };
 }
