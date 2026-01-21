@@ -228,12 +228,27 @@ export function useConversations(userId: string | undefined) {
       return { id: result.conversation_id } as ConversationWithDetails; // Return partial if fetch fails
     }
 
+    // Log the join event
+    await supabase.from("messages").insert({
+      conversation_id: conv.id,
+      sender_id: userId,
+      message_type: 'system',
+      content: JSON.stringify({ type: 'system_log', action: 'joined_group' })
+    });
+
     fetchConversations();
     return conv;
   }, [userId, fetchConversations]);
 
   const leaveConversation = useCallback(async (conversationId: string) => {
     if (!userId) throw new Error("Not authenticated");
+
+    await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: userId,
+      message_type: 'system',
+      content: JSON.stringify({ type: 'system_log', action: 'left_conversation' })
+    });
 
     await supabase
       .from("conversation_members")
@@ -286,7 +301,7 @@ export function useConversations(userId: string | undefined) {
       .from("profiles")
       .select("*")
       .ilike("username", username.trim())
-      .single();
+      .single<Profile>();
 
     if (profileError || !targetProfile) {
       throw new Error("User not found with that username");
@@ -313,6 +328,18 @@ export function useConversations(userId: string | undefined) {
       });
 
     if (insertError) throw insertError;
+
+    // Log the add event
+    await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: userId,
+      message_type: 'system',
+      content: JSON.stringify({ 
+         type: 'system_log', 
+         action: 'added_member', 
+         targetName: targetProfile.display_name || targetProfile.username 
+      })
+    });
 
     // Trigger update? Realtime should handle it, but fetch to be sure
     // We send a toast/notification? Realtime subscription handles list update.

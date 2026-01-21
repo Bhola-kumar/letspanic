@@ -20,6 +20,7 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
   // Refs for checking state inside event listeners without re-subscribing
   const callStateRef = useRef<CallState>('idle');
   const callDataRef = useRef<CallData | null>(null);
+  const startTimeRef = useRef<number | null>(null);
 
   // Sync refs with state
   useEffect(() => {
@@ -157,6 +158,7 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
         // Check ref for current state
         if (callStateRef.current === 'outgoing' && callDataRef.current?.conversationId === payload.conversation_id) {
           setCallState('connected');
+          startTimeRef.current = Date.now();
           stopRinging_Pattern();
         }
       })
@@ -231,6 +233,7 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
     if (!callData || !userId) return;
     
     setCallState('connected');
+    startTimeRef.current = Date.now();
     stopRinging_Pattern();
 
     // To send 'accept', we need to send to the CALLER's channel.
@@ -255,34 +258,77 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
     });
   };
 
-  const declineCall = async () => {
-    if (!callData || !userId) return;
-    
-    stopRinging_Pattern();
-    const targetId = callData.otherUser.user_id;
+  const logCall = async (status: 'ended' | 'missed' | 'declined', duration: number = 0) => {
+      const cid = callDataRef.current?.conversationId;
+      if (!cid || !userId) return;
 
-    const channel = supabase.channel(`calls:${targetId}`);
-    channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-            channel.send({
-              type: 'broadcast',
-              event: 'reject',
-              payload: {
-                conversation_id: callData.conversationId,
-                responder_id: userId,
-              },
-            });
-            supabase.removeChannel(channel);
-        }
-    });
+      try {
+          // Format duration text
+          let durationText = "";
+          if (duration > 0) {
+              const mins = Math.floor(duration / 60);
+              const secs = Math.floor(duration % 60);
+              durationText = `${mins}:${secs.toString().padStart(2, '0')}`;
+          }
 
-    setCallState('idle');
-    setCallData(null);
+          let content = "";
+          if (status === 'ended') content = JSON.stringify({ type: 'call_log', status: 'ended', duration: durationText });
+          if (status === 'missed') content = JSON.stringify({ type: 'call_log', status: 'missed' });
+          if (status === 'declined') content = JSON.stringify({ type: 'call_log', status: 'declined' });
+
+          await supabase.from('messages').insert({
+              conversation_id: cid,
+              sender_id: userId,
+              content: content,
+              message_type: 'system' // Using system type
+          });
+      } catch (e) {
+          console.error("Failed to log call:", e);
+      }
   };
 
+  const endCall = async () => {
+      if (!callData || !userId) return;
+      stopRinging_Pattern();
+      
+      // Calculate duration if connected
+      let duration = 0;
+      if (callState === 'connected' && startTimeRef.current) {
+          duration = (Date.now() - startTimeRef.current) / 1000;
+      }
+      
+      // Log the call locally before resetting state
+      // Only log if WE end it.
+      await logCall('ended', duration);
+
+      const targetId = callData.otherUser.user_id;
+
+      const channel = supabase.channel(`calls:${targetId}`);
+      channel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            channel.send({
+                type: 'broadcast',
+                event: 'end',
+                payload: {
+                  conversation_id: callData.conversationId,
+                },
+              });
+             supabase.removeChannel(channel);
+          }
+      });
+      
+      setCallState('idle');
+      setCallData(null);
+      startTimeRef.current = null;
+  };
+ 
   const cancelCall = async () => {
     if (!callData || !userId) return;
     stopRinging_Pattern();
+    
+    // Caller cancelled -> Missed call for receiver
+    await logCall('missed');
+    
     const targetId = callData.otherUser.user_id;
 
     const channel = supabase.channel(`calls:${targetId}`);
@@ -303,27 +349,33 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
     setCallData(null);
   };
 
-  const endCall = async () => {
-      if (!callData || !userId) return;
-      stopRinging_Pattern();
-      const targetId = callData.otherUser.user_id;
+  const declineCall = async () => {
+    if (!callData || !userId) return;
+    
+    stopRinging_Pattern();
+    
+    // Receiver declined -> Log it
+    await logCall('declined');
 
-      const channel = supabase.channel(`calls:${targetId}`);
-      channel.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
+    const targetId = callData.otherUser.user_id;
+
+    const channel = supabase.channel(`calls:${targetId}`);
+    channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
             channel.send({
-                type: 'broadcast',
-                event: 'end',
-                payload: {
-                  conversation_id: callData.conversationId,
-                },
-              });
-             supabase.removeChannel(channel);
-          }
-      });
-      
-      setCallState('idle');
-      setCallData(null);
+              type: 'broadcast',
+              event: 'reject',
+              payload: {
+                conversation_id: callData.conversationId,
+                responder_id: userId,
+              },
+            });
+            supabase.removeChannel(channel);
+        }
+    });
+
+    setCallState('idle');
+    setCallData(null);
   };
 
   return {

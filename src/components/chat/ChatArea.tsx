@@ -337,6 +337,51 @@ export function ChatArea({
                 {msg.message_type === "audio" && (
                   <audio src={msg.file_url!} controls className="max-w-xs" />
                 )}
+                {/* System / Call Log Message */}
+                {msg.message_type === "system" && (() => {
+                    try {
+                        const data = JSON.parse(msg.content || "{}");
+                        if (data.type === 'call_log') {
+                            return (
+                                <div className="flex items-center gap-3 py-1 min-w-[150px]">
+                                    <div className={`p-2 rounded-full ${data.status === 'missed' ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
+                                        {data.status === 'missed' || data.status === 'declined' ? <PhoneOff className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold text-sm capitalize">
+                                            {data.status === 'missed' ? 'Missed Call' : 
+                                             data.status === 'declined' ? 'Call Declined' : 
+                                             'Voice Call'}
+                                        </span>
+                                        {data.duration && (
+                                            <span className="text-xs opacity-80">{data.duration}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        }
+                        if (data.type === 'system_log') {
+                            let text = "";
+                            if (data.action === 'joined_group') text = "joined the room";
+                            if (data.action === 'left_conversation') text = "left the conversation";
+                            if (data.action === 'added_member') text = `added ${data.targetName}`;
+                            
+                            if (data.action === 'added_member') text = `added ${data.targetName}`;
+                            
+                            const senderMember = conversation.members.find(m => m.user_id === msg.sender_id);
+                            const senderName = isOwn ? "You" : getSenderName(senderMember?.profile);
+
+                            return (
+                                <div className="flex items-center justify-center gap-2 py-0.5 opacity-70">
+                                    <span className="text-xs italic">
+                                       {senderName} {text}
+                                    </span>
+                                </div>
+                            );
+                        }
+                    } catch (e) {}
+                    return <p className="text-sm font-medium italic text-center opacity-80">{msg.content}</p>;
+                })()}
               </div>
             ) : (
               <p className="text-sm whitespace-pre-wrap break-words leading-snug pr-4">{msg.content}</p>
