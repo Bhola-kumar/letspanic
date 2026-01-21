@@ -168,32 +168,7 @@ export function useConversations(userId: string | undefined) {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   };
 
-  const createGroup = useCallback(async (name: string) => {
-    if (!userId) throw new Error("Not authenticated");
 
-    const { data: newConv, error: convError } = await supabase
-      .from("conversations")
-      .insert({
-        name,
-        is_group: true,
-        is_channel: false,
-        owner_id: userId,
-        invite_code: generateInviteCode(),
-      })
-      .select()
-      .single();
-
-    if (convError) throw convError;
-
-    await supabase.from("conversation_members").insert({
-      conversation_id: newConv.id,
-      user_id: userId,
-      role: "owner",
-    });
-
-    fetchConversations();
-    return newConv;
-  }, [userId, fetchConversations]);
 
   const createChannel = useCallback(async (name: string, hasAudio: boolean = false) => {
     if (!userId) throw new Error("Not authenticated");
@@ -308,7 +283,6 @@ export function useConversations(userId: string | undefined) {
     conversations,
     loading,
     createDirectChat,
-    createGroup,
     createChannel,
     joinByCode,
     leaveConversation,

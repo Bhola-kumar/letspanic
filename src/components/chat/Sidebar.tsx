@@ -43,7 +43,6 @@ interface SidebarProps {
   selectedConversation: ConversationWithDetails | null;
   onSelectConversation: (conv: ConversationWithDetails) => void;
   onCreateDirectChat: (code: string) => Promise<void>;
-  onCreateGroup: (name: string) => Promise<void>;
   onCreateChannel: (name: string, hasAudio: boolean) => Promise<void>;
   onJoinByCode: (code: string) => Promise<void>;
   onSignOut: () => Promise<void>;
@@ -55,13 +54,11 @@ export function Sidebar({
   selectedConversation,
   onSelectConversation,
   onCreateDirectChat,
-  onCreateGroup,
   onCreateChannel,
   onJoinByCode,
   onSignOut,
 }: SidebarProps) {
   const [newChatUsername, setNewChatUsername] = useState("");
-  const [newGroupName, setNewGroupName] = useState("");
   const [newChannelName, setNewChannelName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [dialogOpen, setDialogOpen] = useState<string | null>(null);
@@ -85,7 +82,7 @@ export function Sidebar({
       await action();
       setDialogOpen(null);
       setNewChatUsername("");
-      setNewGroupName("");
+
       setNewChannelName("");
       setJoinCode("");
     } catch (error: any) {
@@ -100,7 +97,6 @@ export function Sidebar({
   };
 
   const directChats = conversations.filter((c) => !c.is_group && !c.is_channel);
-  const groups = conversations.filter((c) => c.is_group && !c.is_channel);
   const channels = conversations.filter((c) => c.is_channel);
 
   const filteredConversations = (list: ConversationWithDetails[]) => {
@@ -256,7 +252,7 @@ export function Sidebar({
 
       {/* Scrollable Center Section */}
       <div className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full scrollbar-thin" scrollable="true">
+        <ScrollArea className="h-full scrollbar-thin">
           <div className="p-2 space-y-6">
           {/* Direct Messages */}
           <div>
@@ -313,80 +309,13 @@ export function Sidebar({
             </div>
           </div>
 
-          {/* Groups */}
-          <div>
-            <div className="flex items-center justify-between px-3 mb-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Groups
-              </span>
-              <Dialog open={dialogOpen === "group"} onOpenChange={(o) => setDialogOpen(o ? "group" : null)}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-secondary">
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create a group</DialogTitle>
-                    <DialogDescription>
-                      Create a new group and invite others with a code
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    <Input
-                      placeholder="Group name"
-                      value={newGroupName}
-                      onChange={(e) => setNewGroupName(e.target.value)}
-                    />
-                    <Button
-                      onClick={() => handleAction(() => onCreateGroup(newGroupName))}
-                      disabled={!newGroupName || loading}
-                      className="w-full"
-                    >
-                      {loading ? "Creating..." : "Create Group"}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-            <div className="space-y-1">
-              {filteredConversations(groups).map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => onSelectConversation(conv)}
-                  className={`compact-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
-                >
-                  <div className="h-7 w-7 bg-secondary/80 rounded-md flex items-center justify-center">
-                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0 flex items-center justify-between">
-                    <div className="min-w-0">
-                      <span className={`truncate text-sm block leading-tight ${conv.unreadCount ? "font-bold text-foreground" : "font-medium"}`}>{getConversationName(conv)}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {conv.members.length} member{conv.members.length !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                    {conv.unreadCount ? (
-                      <span className="bg-primary text-primary-foreground text-[10px] font-bold h-5 min-w-[1.25rem] px-1 rounded-full flex items-center justify-center ml-2">
-                        {conv.unreadCount}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-              {filteredConversations(groups).length === 0 && (
-                <p className="text-xs text-muted-foreground px-3 py-4 text-center">
-                  No groups yet
-                </p>
-              )}
-            </div>
-          </div>
 
-          {/* Channels */}
+
+          {/* Rooms (formerly Channels) */}
           <div>
             <div className="flex items-center justify-between px-3 mb-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Channels
+                Rooms
               </span>
               <Dialog open={dialogOpen === "channel"} onOpenChange={(o) => setDialogOpen(o ? "channel" : null)}>
                 <DialogTrigger asChild>
@@ -396,14 +325,14 @@ export function Sidebar({
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Create a channel</DialogTitle>
+                    <DialogTitle>Create a room</DialogTitle>
                     <DialogDescription>
-                      Create a voice channel for your community
+                      Create a voice room for your community
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 pt-4">
                     <Input
-                      placeholder="Channel name"
+                      placeholder="Room name"
                       value={newChannelName}
                       onChange={(e) => setNewChannelName(e.target.value)}
                     />
@@ -413,7 +342,7 @@ export function Sidebar({
                       className="w-full"
                     >
                       <Mic className="h-4 w-4 mr-2" />
-                      Create Audio Channel
+                      Create Room
                     </Button>
                   </div>
                 </DialogContent>
@@ -448,7 +377,7 @@ export function Sidebar({
               ))}
               {filteredConversations(channels).length === 0 && (
                 <p className="text-xs text-muted-foreground px-3 py-4 text-center">
-                  No channels yet
+                  No rooms yet
                 </p>
               )}
             </div>

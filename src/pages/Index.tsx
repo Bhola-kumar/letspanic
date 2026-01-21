@@ -62,7 +62,6 @@ const Index = () => {
     conversations,
     loading: conversationsLoading,
     createDirectChat,
-    createGroup,
     createChannel,
     joinByCode,
     leaveConversation,
@@ -213,17 +212,7 @@ const Index = () => {
     }
   };
 
-  const handleCreateGroup = async (name: string) => {
-    try {
-      await createGroup(name);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
+
 
   const handleCreateChannel = async (name: string, hasAudio: boolean) => {
     try {
@@ -349,7 +338,6 @@ const Index = () => {
             selectedConversation={selectedConversation}
             onSelectConversation={setSelectedConversation}
             onCreateDirectChat={handleCreateDirectChat}
-            onCreateGroup={handleCreateGroup}
             onCreateChannel={handleCreateChannel}
             onJoinByCode={handleJoinByCode}
             onSignOut={signOut}
@@ -403,7 +391,6 @@ const Index = () => {
         selectedConversation={selectedConversation}
         onSelectConversation={setSelectedConversation}
         onCreateDirectChat={handleCreateDirectChat}
-        onCreateGroup={handleCreateGroup}
         onCreateChannel={handleCreateChannel}
         onJoinByCode={handleJoinByCode}
         onSignOut={signOut}
