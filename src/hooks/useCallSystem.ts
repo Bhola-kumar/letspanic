@@ -16,42 +16,126 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
   const [callState, setCallState] = useState<CallState>('idle');
   const [callData, setCallData] = useState<CallData | null>(null);
   const { toast } = useToast();
-  
-  // Ref to hold the sound effect
-  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+
+  // Refs for checking state inside event listeners without re-subscribing
+  const callStateRef = useRef<CallState>('idle');
+  const callDataRef = useRef<CallData | null>(null);
+
+  // Sync refs with state
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
 
   useEffect(() => {
-    // Initialize ringtone
-    ringtoneRef.current = new Audio('/sounds/ringtone.mp3'); 
-    // You might need to add a cleanup or actual sound file later.
-    // For now we'll just log "ringing".
+    callDataRef.current = callData;
+  }, [callData]);
+
+  // Audio Context for Ringtone
+  const audioContextTef = useRef<AudioContext | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+
+  const playRingtone = useCallback(() => {
+    try {
+        if (!audioContextTef.current) {
+            audioContextTef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        const ctx = audioContextTef.current;
+        
+        // Create oscillator
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 1); // Sweep up
+
+        // Pulsing effect
+        const lfo = ctx.createOscillator();
+        lfo.type = 'square';
+        lfo.frequency.value = 4; // 4Hz pulse
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.value = 0.5;
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.start();
+        
+        oscillatorRef.current = osc;
+        gainNodeRef.current = gain;
+        
+        // Loop the "ring"
+        osc.onended = () => {
+             // Basic loop handled by just letting it run or re-triggering? 
+             // Oscillator doesn't loop naturally. Let's make a beeping interval instead for simplicity.
+        };
+
+    } catch (e) {
+        console.error("Error playing ringtone", e);
+    }
   }, []);
 
-  const playRingtone = () => {
-    // ringtoneRef.current?.play().catch(e => console.log("Audio play failed", e));
-    console.log("Playing ringtone...");
-  };
+  const stopRingtone = useCallback(() => {
+      if (oscillatorRef.current) {
+          try { oscillatorRef.current.stop(); } catch(e) {}
+          oscillatorRef.current.disconnect();
+          oscillatorRef.current = null;
+      }
+      if (gainNodeRef.current) {
+          gainNodeRef.current.disconnect();
+          gainNodeRef.current = null;
+      }
+  }, []);
 
-  const stopRingtone = () => {
-    // ringtoneRef.current?.pause();
-    // if (ringtoneRef.current) ringtoneRef.current.currentTime = 0;
-    console.log("Stopping ringtone...");
-  };
+  // Use an interval for the "Ring-Ring" pattern instead of continuous tone
+  const ringIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const startRinging_Pattern = useCallback(() => {
+    if (ringIntervalRef.current) return;
+    
+    const playBeep = () => {
+       if (!audioContextTef.current) {
+           audioContextTef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+       }
+       const ctx = audioContextTef.current;
+       const osc = ctx.createOscillator();
+       const gain = ctx.createGain();
+       
+       osc.connect(gain);
+       gain.connect(ctx.destination);
+       
+       osc.frequency.value = 440;
+       gain.gain.setValueAtTime(0.1, ctx.currentTime);
+       
+       osc.start();
+       osc.stop(ctx.currentTime + 1); // 1 second beep
+    };
+
+    playBeep(); // Immediate
+    ringIntervalRef.current = setInterval(playBeep, 3000); // Repeat every 3s
+  }, []);
+
+  const stopRinging_Pattern = useCallback(() => {
+      if (ringIntervalRef.current) {
+          clearInterval(ringIntervalRef.current);
+          ringIntervalRef.current = null;
+      }
+  }, []);
 
   // Subscribe to my own signaling channel to receive calls
   useEffect(() => {
     if (!userId) return;
 
+    console.log(`Subscribing to signaling channel: calls:${userId}`);
     const channel = supabase.channel(`calls:${userId}`)
       .on('broadcast', { event: 'invite' }, async ({ payload }) => {
         console.log('Received call invite:', payload);
-        if (callState !== 'idle') {
-          // Busy: Automatically reject or just ignore?
-          // Let's send a 'busy' signal back maybe?
+        if (callStateRef.current !== 'idle') {
+          // Busy
           return;
         }
 
-        // Fetch caller profile
         const { data: callerProfile } = await supabase
           .from('profiles')
           .select('*')
@@ -65,50 +149,52 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
             isInitiator: false,
           });
           setCallState('incoming');
-          playRingtone();
+          startRinging_Pattern();
         }
       })
       .on('broadcast', { event: 'accept' }, ({ payload }) => {
         console.log('Call accepted by:', payload);
-        if (callState === 'outgoing' && callData?.conversationId === payload.conversation_id) {
+        // Check ref for current state
+        if (callStateRef.current === 'outgoing' && callDataRef.current?.conversationId === payload.conversation_id) {
           setCallState('connected');
-          stopRingtone();
+          stopRinging_Pattern();
         }
       })
       .on('broadcast', { event: 'reject' }, ({ payload }) => {
         console.log('Call rejected by:', payload);
-        if (callState === 'outgoing' && callData?.conversationId === payload.conversation_id) {
+        if (callStateRef.current === 'outgoing' && callDataRef.current?.conversationId === payload.conversation_id) {
           setCallState('idle');
           setCallData(null);
-          stopRingtone();
+          stopRinging_Pattern();
           toast({ description: "Call declined" });
         }
       })
       .on('broadcast', { event: 'cancel' }, ({ payload }) => {
         console.log('Call cancelled by caller');
-        if (callState === 'incoming' && callData?.conversationId === payload.conversation_id) {
+        if (callStateRef.current === 'incoming' && callDataRef.current?.conversationId === payload.conversation_id) {
           setCallState('idle');
           setCallData(null);
-          stopRingtone();
+          stopRinging_Pattern();
           toast({ description: "Call missed" });
         }
       })
       .on('broadcast', { event: 'end' }, ({ payload }) => {
          console.log('Call ended by peer');
-         // Only end if it's the current call
-         if (callData?.conversationId === payload.conversation_id) {
-            setCallState('idle'); // Or 'ending' -> 'idle'
+         if (callDataRef.current?.conversationId === payload.conversation_id) {
+            setCallState('idle');
             setCallData(null);
-            stopRingtone(); 
+            stopRinging_Pattern(); 
             toast({ description: "Call ended" });
          }
       })
       .subscribe();
 
     return () => {
+      console.log("Unsubscribing from signaling channel");
+      stopRinging_Pattern();
       supabase.removeChannel(channel);
     };
-  }, [userId, callState, callData, toast]);
+  }, [userId]); // Only depend on userId!
 
   const initiateCall = async (conversationId: string, targetUser: Profile) => {
     if (!userId || !userProfile) return;
@@ -119,12 +205,14 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
       isInitiator: true,
     });
     setCallState('outgoing');
-    // sound? "Calling..." sound
+    startRinging_Pattern(); // Ringing for caller too (calling tone)
 
     // Send invite
-    await supabase.channel(`calls:${targetUser.user_id}`).subscribe((status) => {
+    // We send to the target's channel
+    const channel = supabase.channel(`calls:${targetUser.user_id}`);
+    channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-            supabase.channel(`calls:${targetUser.user_id}`).send({
+            channel.send({
               type: 'broadcast',
               event: 'invite',
               payload: {
@@ -132,6 +220,9 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
                 caller_id: userId,
               },
             });
+            // We can unsubscribe from the *target's* channel after sending? 
+            // Or keep it? Usually better to just send and let it go.
+             supabase.removeChannel(channel); 
         }
     });
   };
@@ -140,12 +231,18 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
     if (!callData || !userId) return;
     
     setCallState('connected');
-    stopRingtone();
+    stopRinging_Pattern();
 
-    // Notify caller
-    await supabase.channel(`calls:${callData.otherUser.user_id}`).subscribe((status) => {
+    // To send 'accept', we need to send to the CALLER's channel.
+    // In initiateCall, we set otherUser = targetUser.
+    // In incoming invite, we set otherUser = callerProfile.
+    // So callData.otherUser.user_id is always the *remote* party.
+    const targetId = callData.otherUser.user_id;
+
+    const channel = supabase.channel(`calls:${targetId}`);
+    channel.subscribe((status) => {
        if (status === 'SUBSCRIBED') {
-         supabase.channel(`calls:${callData.otherUser.user_id}`).send({
+         channel.send({
            type: 'broadcast',
            event: 'accept',
            payload: {
@@ -153,6 +250,7 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
              responder_id: userId,
            },
          });
+         supabase.removeChannel(channel);
        }
     });
   };
@@ -160,12 +258,13 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
   const declineCall = async () => {
     if (!callData || !userId) return;
     
-    stopRingtone();
-    
-    // Notify caller
-    await supabase.channel(`calls:${callData.otherUser.user_id}`).subscribe((status) => {
+    stopRinging_Pattern();
+    const targetId = callData.otherUser.user_id;
+
+    const channel = supabase.channel(`calls:${targetId}`);
+    channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-            supabase.channel(`calls:${callData.otherUser.user_id}`).send({
+            channel.send({
               type: 'broadcast',
               event: 'reject',
               payload: {
@@ -173,6 +272,7 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
                 responder_id: userId,
               },
             });
+            supabase.removeChannel(channel);
         }
     });
 
@@ -182,17 +282,20 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
 
   const cancelCall = async () => {
     if (!callData || !userId) return;
-    
-    // Notify callee
-    await supabase.channel(`calls:${callData.otherUser.user_id}`).subscribe((status) => {
+    stopRinging_Pattern();
+    const targetId = callData.otherUser.user_id;
+
+    const channel = supabase.channel(`calls:${targetId}`);
+    channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-            supabase.channel(`calls:${callData.otherUser.user_id}`).send({
+            channel.send({
               type: 'broadcast',
               event: 'cancel',
               payload: {
                 conversation_id: callData.conversationId,
               },
             });
+            supabase.removeChannel(channel);
         }
     });
 
@@ -202,17 +305,20 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
 
   const endCall = async () => {
       if (!callData || !userId) return;
+      stopRinging_Pattern();
+      const targetId = callData.otherUser.user_id;
 
-      // Notify other party
-      await supabase.channel(`calls:${callData.otherUser.user_id}`).subscribe((status) => {
+      const channel = supabase.channel(`calls:${targetId}`);
+      channel.subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            supabase.channel(`calls:${callData.otherUser.user_id}`).send({
+            channel.send({
                 type: 'broadcast',
                 event: 'end',
                 payload: {
                   conversation_id: callData.conversationId,
                 },
               });
+             supabase.removeChannel(channel);
           }
       });
       
