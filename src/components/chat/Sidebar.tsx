@@ -60,7 +60,7 @@ export function Sidebar({
   onJoinByCode,
   onSignOut,
 }: SidebarProps) {
-  const [newChatCode, setNewChatCode] = useState("");
+  const [newChatUsername, setNewChatUsername] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
   const [newChannelName, setNewChannelName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -71,10 +71,11 @@ export function Sidebar({
   const { toast } = useToast();
   const onlineUserIds = useOnlineStatus();
 
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(profile.user_code);
+  const handleCopyUsername = () => {
+    if (!profile.username) return;
+    navigator.clipboard.writeText(profile.username);
     setCopied(true);
-    toast({ title: "Copied!", description: "Your code has been copied to clipboard" });
+    toast({ title: "Copied!", description: "Username copied to clipboard" });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -83,7 +84,7 @@ export function Sidebar({
     try {
       await action();
       setDialogOpen(null);
-      setNewChatCode("");
+      setNewChatUsername("");
       setNewGroupName("");
       setNewChannelName("");
       setJoinCode("");
@@ -162,9 +163,9 @@ export function Sidebar({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="glass-card">
-                <DropdownMenuItem onClick={handleCopyCode} className="gap-2 cursor-pointer">
+                <DropdownMenuItem onClick={handleCopyUsername} className="gap-2 cursor-pointer">
                   {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-                  Copy code: {profile.user_code}
+                  Copy username: {profile.username}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onSignOut} className="text-destructive gap-2 cursor-pointer">
@@ -198,19 +199,19 @@ export function Sidebar({
               <DialogHeader>
                 <DialogTitle>Start a new chat</DialogTitle>
                 <DialogDescription>
-                  Enter the user code of the person you want to chat with
+                  Enter the username of the person you want to chat with
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 <Input
-                  placeholder="Enter user code (e.g., A1B2C3D4)"
-                  value={newChatCode}
-                  onChange={(e) => setNewChatCode(e.target.value.toUpperCase())}
-                  className="uppercase font-mono tracking-wider glass-input"
+                  placeholder="Enter username"
+                  value={newChatUsername}
+                  onChange={(e) => setNewChatUsername(e.target.value.toLowerCase())}
+                  className="font-mono tracking-wide glass-input"
                 />
                 <Button
-                  onClick={() => handleAction(() => onCreateDirectChat(newChatCode))}
-                  disabled={!newChatCode || loading}
+                  onClick={() => handleAction(() => onCreateDirectChat(newChatUsername))}
+                  disabled={!newChatUsername || loading}
                   className="w-full"
                 >
                   {loading ? "Finding user..." : "Start Chat"}
@@ -470,7 +471,7 @@ export function Sidebar({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate leading-tight">{getDisplayName(profile)}</p>
-            <p className="text-[10px] text-muted-foreground font-mono leading-tight">#{profile.user_code}</p>
+            <p className="text-[10px] text-muted-foreground font-mono leading-tight">@{profile.username}</p>
           </div>
         </div>
       </div>

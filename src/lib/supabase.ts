@@ -7,6 +7,7 @@ export type Profile = {
   user_id: string;
   email: string;
   display_name: string | null;
+  username: string | null;
   avatar_url: string | null;
   user_code: string;
   is_online: boolean;

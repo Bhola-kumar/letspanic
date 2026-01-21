@@ -99,17 +99,17 @@ export function useConversations(userId: string | undefined) {
     };
   }, [userId, fetchConversations]);
 
-  const createDirectChat = useCallback(async (targetUserCode: string) => {
+  const createDirectChat = useCallback(async (targetUsername: string) => {
     if (!userId) throw new Error("Not authenticated");
 
     const { data: targetProfile, error: profileError } = await supabase
       .from("profiles")
       .select("*")
-      .eq("user_code", targetUserCode.toUpperCase())
+      .ilike("username", targetUsername.trim())
       .single();
 
     if (profileError || !targetProfile) {
-      throw new Error("User not found with that code");
+      throw new Error("User not found with that username");
     }
 
     // Check if conversation already exists

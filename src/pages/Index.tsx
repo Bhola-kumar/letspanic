@@ -4,6 +4,7 @@ import { useConversations, ConversationWithDetails } from "@/hooks/useConversati
 import { useMessages } from "@/hooks/useMessages";
 import { supabase } from "@/lib/supabase";
 import { LoginScreen } from "@/components/chat/LoginScreen";
+import { UsernameSetup } from "@/components/auth/UsernameSetup";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { usePresence } from "@/hooks/usePresence";
 import { ChatArea } from "@/components/chat/ChatArea";
@@ -11,7 +12,7 @@ import { EmptyState } from "@/components/chat/EmptyState";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
-  const { user, profile, loading: authLoading, signInWithGoogle, signOut } = useAuth();
+  const { user, profile, loading: authLoading, signInWithGoogle, signOut, updateProfile } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithDetails | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
@@ -187,6 +188,18 @@ const Index = () => {
 
   if (!user || !profile) {
     return <LoginScreen onGoogleLogin={handleGoogleLogin} loading={authLoading} />;
+  }
+
+  // Force username setup
+  if (!profile.username) {
+    return (
+      <UsernameSetup 
+        onComplete={() => {
+           // Reload profile to reflect changes
+           window.location.reload(); 
+        }} 
+      />
+    );
   }
 
   const isOwner = selectedConversation?.owner_id === user.id;
