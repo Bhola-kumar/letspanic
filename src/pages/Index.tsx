@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations, ConversationWithDetails } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
+import { supabase } from "@/lib/supabase";
 import { LoginScreen } from "@/components/chat/LoginScreen";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { usePresence } from "@/hooks/usePresence";
@@ -26,6 +27,7 @@ const Index = () => {
     joinByCode,
     leaveConversation,
     deleteConversation,
+    markAsRead,
     refetch: refetchConversations,
   } = useConversations(user?.id);
 
@@ -36,6 +38,66 @@ const Index = () => {
     sendFileMessage,
     deleteMessage,
   } = useMessages(selectedConversation?.id || null, user?.id);
+
+  // Request notification permission
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Global message listener for notifications
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('global-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        async (payload) => {
+          // If we are looking at this conversation and window is focused, don't notify
+          const isCurrentConv = selectedConversation?.id === payload.new.conversation_id;
+          const isHidden = document.hidden;
+
+          if ((!isCurrentConv || isHidden) && payload.new.sender_id !== user.id) {
+            // Fetch sender info for notification
+            const { data: sender } = await supabase
+              .from('profiles')
+              .select('display_name, email')
+              .eq('user_id', payload.new.sender_id)
+              .single();
+            
+            const senderName = sender?.display_name || sender?.email?.split('@')[0] || 'Someone';
+            
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification(`New message from ${senderName}`, {
+                body: payload.new.message_type === 'text' ? payload.new.content : `Sent a ${payload.new.message_type}`,
+                icon: '/placeholder.svg'
+              });
+            }
+            // Also refetch conversations to update badges
+            refetchConversations();
+          } else if (isCurrentConv && !isHidden) {
+            // We are looking at it, so we can mark as read immediately or let the ChatArea effect handle it.
+            // But ChatArea effects depend on 'messages' changing.
+            // Since we are in the parent, we can just optionally refetch if needed, 
+            // but useMessages inside ChatArea subscribes to its own messages, so UI updates automatically.
+            // Just update unread counts (badges) globally if we were in another chat.
+            if (!isCurrentConv) refetchConversations();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, selectedConversation?.id, refetchConversations]);
 
   // Update selected conversation when conversations change
   useEffect(() => {
@@ -158,6 +220,8 @@ const Index = () => {
             onDelete={handleDelete}
             isOwner={isOwner}
             onBack={() => setSelectedConversation(null)}
+            onMarkAsRead={markAsRead}
+            currentUserId={user.id}
           />
         )}
       </div>
@@ -190,6 +254,8 @@ const Index = () => {
           onLeave={handleLeave}
           onDelete={handleDelete}
           isOwner={isOwner}
+          onMarkAsRead={markAsRead}
+          currentUserId={user.id}
         />
       ) : (
         <EmptyState />

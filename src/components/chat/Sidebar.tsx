@@ -288,11 +288,18 @@ export function Sidebar({
                         }`} 
                       />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="truncate text-sm font-medium block leading-tight">{name}</span>
-                      <span className="text-[10px] text-muted-foreground truncate block">
-                        {isOnline ? "Online" : "Offline"}
-                      </span>
+                    <div className="flex-1 min-w-0 flex items-center justify-between">
+                      <div className="min-w-0">
+                        <span className={`truncate text-sm block leading-tight ${conv.unreadCount ? "font-bold text-foreground" : "font-medium"}`}>{name}</span>
+                        <span className="text-[10px] text-muted-foreground truncate block">
+                          {isOnline ? "Online" : "Offline"}
+                        </span>
+                      </div>
+                      {conv.unreadCount ? (
+                        <span className="bg-primary text-primary-foreground text-[10px] font-bold h-5 min-w-[1.25rem] px-1 rounded-full flex items-center justify-center ml-2">
+                          {conv.unreadCount}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -351,11 +358,18 @@ export function Sidebar({
                   <div className="h-7 w-7 bg-secondary/80 rounded-md flex items-center justify-center">
                     <Users className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="truncate text-sm font-medium block leading-tight">{getConversationName(conv)}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {conv.members.length} member{conv.members.length !== 1 ? "s" : ""}
-                    </span>
+                  <div className="flex-1 min-w-0 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <span className={`truncate text-sm block leading-tight ${conv.unreadCount ? "font-bold text-foreground" : "font-medium"}`}>{getConversationName(conv)}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {conv.members.length} member{conv.members.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    {conv.unreadCount ? (
+                      <span className="bg-primary text-primary-foreground text-[10px] font-bold h-5 min-w-[1.25rem] px-1 rounded-full flex items-center justify-center ml-2">
+                        {conv.unreadCount}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -420,10 +434,15 @@ export function Sidebar({
                   </div>
                   <span className="truncate text-sm font-medium flex-1 leading-tight">{getConversationName(conv)}</span>
                   {conv.has_audio && (
-                    <span className="text-[9px] bg-success/20 text-success px-1.5 py-0.5 rounded-full font-medium">
+                    <span className="text-[9px] bg-success/20 text-success px-1.5 py-0.5 rounded-full font-medium mr-2">
                       Voice
                     </span>
                   )}
+                  {conv.unreadCount ? (
+                    <span className="bg-primary text-primary-foreground text-[10px] font-bold h-5 min-w-[1.25rem] px-1 rounded-full flex items-center justify-center">
+                      {conv.unreadCount}
+                    </span>
+                  ) : null}
                 </div>
               ))}
               {filteredConversations(channels).length === 0 && (

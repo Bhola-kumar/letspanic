@@ -69,6 +69,8 @@ interface ChatAreaProps {
   onDelete: () => Promise<void>;
   isOwner: boolean;
   onBack?: () => void;
+  onMarkAsRead: (id: string) => Promise<void>;
+  currentUserId: string;
 }
 
 export function ChatArea({
@@ -83,6 +85,8 @@ export function ChatArea({
   onDelete,
   isOwner,
   onBack,
+  onMarkAsRead,
+  currentUserId,
 }: ChatAreaProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -154,9 +158,16 @@ export function ChatArea({
   }, [selectedInput]);
 
   // Clear flash messages when switching conversations
+  // Clear flash messages when switching conversations
   useEffect(() => {
     clearFlashMessages();
   }, [conversation.id, clearFlashMessages]);
+
+  useEffect(() => {
+    if (conversation.id && !messagesLoading) {
+      onMarkAsRead(conversation.id);
+    }
+  }, [conversation.id, messages, messagesLoading, onMarkAsRead]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessage(e.target.value);
@@ -358,9 +369,22 @@ export function ChatArea({
             )}
           </div>
 
-          <span className="text-[9px] text-muted-foreground mt-0.5 mx-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {formatMessageTime(msg.created_at)}
-          </span>
+          <div className="flex items-center justify-end gap-1 mt-0.5 mx-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-[9px] text-muted-foreground">
+              {formatMessageTime(msg.created_at)}
+            </span>
+            {isOwn && msg.message_type !== "system" && (
+              <span className="text-[9px]">
+                {msg.created_at ? (
+                  conversation.members.some(m => m.user_id !== profile.user_id && new Date(m.last_read_at) >= new Date(msg.created_at)) ? (
+                    <span className="text-primary font-bold">✓✓</span>
+                  ) : (
+                    <span className="text-muted-foreground">✓</span>
+                  )
+                ) : null}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     );

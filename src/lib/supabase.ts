@@ -34,6 +34,7 @@ export type ConversationMember = {
   user_id: string;
   role: 'owner' | 'admin' | 'member';
   joined_at: string;
+  last_read_at: string;
 };
 
 export type Message = {

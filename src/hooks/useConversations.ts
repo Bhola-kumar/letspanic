@@ -36,8 +36,26 @@ export function useConversations(userId: string | undefined) {
 
       if (memberError) throw memberError;
 
+      
+      // Fetch unread counts
+      const { data: unreadData, error: unreadError } = await supabase.rpc('get_unread_counts' as any);
+      
+      if (unreadError) {
+        console.error("Error fetching unread counts:", unreadError);
+      }
+
+      const unreadMap = new Map<string, number>();
+      if (unreadData && Array.isArray(unreadData)) {
+        unreadData.forEach((item: any) => {
+          unreadMap.set(item.conversation_id, Number(item.unread_count));
+        });
+      }
+
       const formattedConversations: ConversationWithDetails[] = (memberData || [])
-        .map((m: any) => m.conversation)
+        .map((m: any) => ({
+          ...m.conversation,
+          unreadCount: unreadMap.get(m.conversation.id) || 0,
+        }))
         .filter(Boolean)
         .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
@@ -259,6 +277,27 @@ export function useConversations(userId: string | undefined) {
     fetchConversations();
   };
 
+  const markAsRead = async (conversationId: string) => {
+    if (!userId) return;
+
+    // Optimistic update
+    setConversations(prev => prev.map(c => {
+      if (c.id === conversationId) {
+        return { ...c, unreadCount: 0 };
+      }
+      return c;
+    }));
+
+    const { error } = await supabase.rpc('mark_conversation_read' as any, {
+      p_conversation_id: conversationId
+    });
+
+    if (error) {
+      console.error("Error marking conversation as read:", error);
+    } 
+    // We rely on optimistic update + eventual consistency or realtime
+  };
+
   return {
     conversations,
     loading,
@@ -268,6 +307,7 @@ export function useConversations(userId: string | undefined) {
     joinByCode,
     leaveConversation,
     deleteConversation,
+    markAsRead,
     refetch: fetchConversations,
   };
 }
