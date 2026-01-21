@@ -68,6 +68,7 @@ const Index = () => {
     deleteConversation,
     markAsRead,
     refetch: refetchConversations,
+    addMemberByUsername,
   } = useConversations(user?.id);
 
   const {
@@ -137,6 +138,39 @@ const Index = () => {
       supabase.removeChannel(channel);
     };
   }, [user?.id, selectedConversation?.id, refetchConversations]);
+
+  useEffect(() => {
+    // Check for joinCode in URL
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('joinCode');
+
+    if (code && user?.id) {
+        // Auto-join
+        // We might want to clear the param so it doesn't re-join on refresh?
+        // Or show a dialog "Do you want to join..."
+        // For now, let's try auto-join and notify.
+        
+        // Remove param from URL
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+
+        joinByCode(code).then((conv) => {
+             toast({ title: "Joined Room", description: `You joined ${conv.name || 'the room'}`});
+             if (conv) {
+                // Determine if we need to fetch details or if joinByCode returns enough
+                // joinByCode returns partial or full. 
+                // We should select it.
+                // But conversations list might update asynchronously.
+                // Let's set selectedConversation if it's returns with details.
+                // Usually fetchConversations will update the list, and we select it from there.
+                
+                // Let's rely on conversations update.
+             }
+        }).catch(err => {
+             toast({ title: "Join Failed", description: err.message, variant: "destructive" });
+        });
+    }
+  }, [user?.id, joinByCode, toast]);
 
   // Update selected conversation when conversations change
   useEffect(() => {
@@ -367,6 +401,7 @@ const Index = () => {
             selectedInput={selectedInput}
             onSwitchDevice={switchDevice}
             joinRoom={joinRoom}
+            onAddMember={handleAddMember}
           />
         )}
       </div>
@@ -420,6 +455,7 @@ const Index = () => {
           audioInputs={audioInputs}
           selectedInput={selectedInput}
           onSwitchDevice={switchDevice}
+          onAddMember={handleAddMember}
         />
       ) : (
         <EmptyState />

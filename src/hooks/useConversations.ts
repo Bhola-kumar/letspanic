@@ -279,6 +279,45 @@ export function useConversations(userId: string | undefined) {
     } 
   }, [userId]);
 
+  const addMemberByUsername = useCallback(async (conversationId: string, username: string) => {
+    if (!userId) throw new Error("Not authenticated");
+
+    const { data: targetProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .ilike("username", username.trim())
+      .single();
+
+    if (profileError || !targetProfile) {
+      throw new Error("User not found with that username");
+    }
+
+    // Check if user is already a member
+    const { data: existingMember } = await supabase
+        .from("conversation_members")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .eq("user_id", targetProfile.user_id)
+        .single();
+    
+    if (existingMember) {
+        throw new Error("User is already a member of this room");
+    }
+
+    const { error: insertError } = await supabase
+      .from("conversation_members")
+      .insert({
+        conversation_id: conversationId,
+        user_id: targetProfile.user_id,
+        role: "member",
+      });
+
+    if (insertError) throw insertError;
+
+    // Trigger update? Realtime should handle it, but fetch to be sure
+    // We send a toast/notification? Realtime subscription handles list update.
+  }, [userId]);
+
   return {
     conversations,
     loading,
@@ -289,5 +328,6 @@ export function useConversations(userId: string | undefined) {
     deleteConversation,
     markAsRead,
     refetch: fetchConversations,
+    addMemberByUsername,
   };
 }

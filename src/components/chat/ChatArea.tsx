@@ -25,6 +25,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  UserPlus,
   Send,
   Paperclip,
   Image,
@@ -82,6 +83,7 @@ interface ChatAreaProps {
   selectedInput: string | null;
   onSwitchDevice: (deviceId: string) => void;
   joinRoom: (deviceId?: string) => Promise<void>;
+  onAddMember: (conversationId: string, username: string) => Promise<void>;
 }
 
 export function ChatArea({
@@ -108,11 +110,15 @@ export function ChatArea({
   selectedInput,
   onSwitchDevice,
   joinRoom,
+  onAddMember,
 }: ChatAreaProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [isFlashMode, setIsFlashMode] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [newMemberUsername, setNewMemberUsername] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
   
   // Removed local useVoiceRoom hook to use parent state
 
@@ -438,6 +444,69 @@ export function ChatArea({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+
+          {(conversation.is_group || conversation.is_channel) && (
+             <div className="flex items-center gap-1">
+                {/* Invite Link Button */}
+                 <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleCopyInvite}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Copy Invite Link</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                {/* Add Member Button */}
+                <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Add Member</DialogTitle>
+                      <DialogDescription>
+                        Enter the username of the person you want to add.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex items-center space-x-2">
+                        <Input
+                          placeholder="Username"
+                          value={newMemberUsername}
+                          onChange={(e) => setNewMemberUsername(e.target.value)}
+                        />
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            className="px-3"
+                            disabled={!newMemberUsername || addingMember}
+                            onClick={async () => {
+                                setAddingMember(true);
+                                try {
+                                    await onAddMember(conversation.id, newMemberUsername);
+                                    setAddMemberOpen(false);
+                                    setNewMemberUsername("");
+                                    toast({ title: "Success", description: "User added to the room" });
+                                } catch (e: any) {
+                                    toast({ title: "Error", description: e.message, variant: "destructive" });
+                                } finally {
+                                    setAddingMember(false);
+                                }
+                            }}
+                        >
+                            {addingMember ? "Adding..." : "Add"}
+                        </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+             </div>
+          )}
 
           {conversation.has_audio && (
             <>
