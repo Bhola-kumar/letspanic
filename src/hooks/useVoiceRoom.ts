@@ -143,25 +143,39 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
     };
 
     pc.ontrack = (event) => {
-      console.log(`[WebRTC] Received remote track from ${targetUserId}`, event.track.kind);
-      
-      // Use the first stream provided, or create a new one from the track if none exists
-      const remoteStream = (event.streams && event.streams[0]) 
-        ? event.streams[0] 
-        : new MediaStream([event.track]);
+      try {
+        console.log(`[WebRTC] Received remote track from ${targetUserId}`, event.track.kind, event.track.id);
 
-      const audioTracks = remoteStream.getAudioTracks();
-      console.log(`[WebRTC] Remote stream tracks for ${targetUserId}:`, audioTracks.map(t => ({ id: t.id, enabled: t.enabled, kind: t.kind })));
+        const incomingTrack = event.track;
 
-      setParticipants(prev => {
-        const exists = prev.find(p => p.user_id === targetUserId);
-        if (exists) {
-          // Update the stream only if it's different to avoid unnecessary re-renders
-          if (exists.stream === remoteStream) return prev;
-          return prev.map(p => p.user_id === targetUserId ? { ...p, stream: remoteStream } : p);
-        }
-        return [...prev, { user_id: targetUserId, stream: remoteStream }];
-      });
+        setParticipants(prev => {
+          const exists = prev.find(p => p.user_id === targetUserId);
+          if (exists && exists.stream) {
+            // If a stream already exists for this participant, add the incoming track to it
+            try {
+              const rs = exists.stream;
+              const existingIds = rs.getTracks().map(t => t.id);
+              if (!existingIds.includes(incomingTrack.id)) {
+                rs.addTrack(incomingTrack);
+              }
+              console.log(`[WebRTC] Added incoming track to existing stream for ${targetUserId}`);
+              return prev.map(p => p.user_id === targetUserId ? { ...p, stream: rs } : p);
+            } catch (e) {
+              console.warn('Failed to append track to existing stream', e);
+            }
+          }
+
+          // Otherwise create a new MediaStream from provided streams or the single track
+          const newStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([incomingTrack]);
+          const audioTracks = newStream.getAudioTracks();
+          console.log(`[WebRTC] Remote stream tracks for ${targetUserId}:`, audioTracks.map(t => ({ id: t.id, enabled: t.enabled, kind: t.kind })));
+          // Replace or add participant
+          const filtered = prev.filter(p => p.user_id !== targetUserId);
+          return [...filtered, { user_id: targetUserId, stream: newStream }];
+        });
+      } catch (e) {
+        console.error('Error handling ontrack event', e);
+      }
     };
 
     peerConnections.current[targetUserId] = pc;
@@ -282,6 +296,19 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
       // Do not setInAudioRoom(true) yet? No, we should.
       setInAudioRoom(true);
       console.log("Microphone access granted.");
+
+      // Ensure a resumed/shared AudioContext exists (user gesture: join/accept)
+      try {
+        const g = window as any;
+        if (!g.__letspanicAudioContext) {
+          g.__letspanicAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        if (g.__letspanicAudioContext.state === 'suspended') {
+          await g.__letspanicAudioContext.resume();
+        }
+      } catch (e) {
+        console.warn('Failed to init/resume shared AudioContext', e);
+      }
 
       initChannel(stream, targetId);
 

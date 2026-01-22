@@ -46,18 +46,19 @@ export function ParticipantAudio({ stream, userId, outputDeviceId, showUI = fals
           console.warn("Auto-play blocked or failed:", error);
         }
 
-        // If an AudioContext exists, connect the stream for reliable routing
-        if (audioContextRef.current && stream) {
-          try {
-            if (sourceNodeRef.current) {
-              sourceNodeRef.current.disconnect();
-            }
+        // Try to use a shared/global AudioContext (created when user joined/accepted)
+        try {
+          const g = (window as any).__letspanicAudioContext as AudioContext | undefined;
+          const ctx = g || audioContextRef.current;
+          if (ctx && stream) {
+            if (!audioContextRef.current) audioContextRef.current = ctx;
+            if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
             sourceNodeRef.current = audioContextRef.current.createMediaStreamSource(stream);
             sourceNodeRef.current.connect(audioContextRef.current.destination);
             console.log("Connected remote stream to AudioContext destination");
-          } catch (e) {
-            console.warn("AudioContext connect failed:", e);
           }
+        } catch (e) {
+          console.warn("AudioContext connect failed:", e);
         }
       };
 
@@ -67,6 +68,15 @@ export function ParticipantAudio({ stream, userId, outputDeviceId, showUI = fals
         audioRef.current?.removeEventListener("playing", onPlaying);
         audioRef.current?.removeEventListener("pause", onPause);
         audioRef.current?.removeEventListener("error", onError as any);
+        // Disconnect source node to free resources
+        try {
+          if (sourceNodeRef.current) {
+            sourceNodeRef.current.disconnect();
+            sourceNodeRef.current = null;
+          }
+        } catch (e) {}
+        // Clear audio element source
+        try { if (audioRef.current) audioRef.current.srcObject = null; } catch (e) {}
       };
     }
   }, [stream]);
@@ -97,7 +107,12 @@ export function ParticipantAudio({ stream, userId, outputDeviceId, showUI = fals
         await audioRef.current.play();
         // resume AudioContext on user gesture to satisfy autoplay policies
         try {
-          if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const g = (window as any).__letspanicAudioContext as AudioContext | undefined;
+          if (g) {
+            audioContextRef.current = g;
+          } else if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          }
           await audioContextRef.current.resume();
           if (stream) {
             if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
@@ -112,6 +127,19 @@ export function ParticipantAudio({ stream, userId, outputDeviceId, showUI = fals
       console.warn("[WebRTC] Play/Pause failed:", e);
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        if (sourceNodeRef.current) {
+          sourceNodeRef.current.disconnect();
+          sourceNodeRef.current = null;
+        }
+      } catch (e) {}
+      try { if (audioRef.current) audioRef.current.srcObject = null; } catch (e) {}
+    };
+  }, []);
 
   // Note: per-participant audio output selector removed to keep a single
   // live control per participant. Global output routing can be handled
