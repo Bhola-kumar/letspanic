@@ -15,6 +15,15 @@ import { CallOverlay } from "@/components/chat/CallOverlay";
 import { useCallSystem } from "@/hooks/useCallSystem";
 import { useVoiceRoom } from "@/hooks/useVoiceRoom";
 import { ParticipantAudio } from "@/components/chat/ParticipantAudio";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
   const { user, profile, loading: authLoading, signInWithGoogle, signOut, updateProfile } = useAuth();
@@ -142,38 +151,21 @@ const Index = () => {
     };
   }, [user?.id, selectedConversation?.id, refetchConversations]);
 
+  const [pendingJoinCode, setPendingJoinCode] = useState<string | null>(null);
+
   useEffect(() => {
     // Check for joinCode in URL
     const params = new URLSearchParams(window.location.search);
     const code = params.get('joinCode');
 
     if (code && user?.id) {
-        // Auto-join
-        // We might want to clear the param so it doesn't re-join on refresh?
-        // Or show a dialog "Do you want to join..."
-        // For now, let's try auto-join and notify.
+        setPendingJoinCode(code);
         
         // Remove param from URL
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
-
-        joinByCode(code).then((conv) => {
-             toast({ title: "Joined Room", description: `You joined ${conv.name || 'the room'}`});
-             if (conv) {
-                // Determine if we need to fetch details or if joinByCode returns enough
-                // joinByCode returns partial or full. 
-                // We should select it.
-                // But conversations list might update asynchronously.
-                // Let's set selectedConversation if it's returns with details.
-                // Usually fetchConversations will update the list, and we select it from there.
-                
-                // Let's rely on conversations update.
-             }
-        }).catch(err => {
-             toast({ title: "Join Failed", description: err.message, variant: "destructive" });
-        });
     }
-  }, [user?.id, joinByCode, toast]);
+  }, [user?.id]);
 
   // Update selected conversation when conversations change
   useEffect(() => {
@@ -427,6 +419,7 @@ const Index = () => {
             onSwitchDevice={switchDevice}
             joinRoom={joinRoom}
             onAddMember={handleAddMember}
+            onJoinRequest={(code) => setPendingJoinCode(code)}
           />
         )}
       </div>
@@ -484,10 +477,37 @@ const Index = () => {
           selectedInput={selectedInput}
           onSwitchDevice={switchDevice}
           onAddMember={handleAddMember}
+          onJoinRequest={(code) => setPendingJoinCode(code)}
         />
       ) : (
         <EmptyState />
       )}
+
+      <Dialog open={!!pendingJoinCode} onOpenChange={(open) => !open && setPendingJoinCode(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Join Group</DialogTitle>
+                <DialogDescription>
+                    You have been invited to join a group. Do you want to join?
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setPendingJoinCode(null)}>Cancel</Button>
+                <Button onClick={() => {
+                    if (pendingJoinCode) {
+                        joinByCode(pendingJoinCode).then((conv) => {
+                            toast({ title: "Joined Room", description: `You joined ${conv.name || 'the room'}`});
+                            refetchConversations();
+                            setSelectedConversation(conv as ConversationWithDetails);
+                        }).catch(err => {
+                            toast({ title: "Join Failed", description: err.message, variant: "destructive" });
+                        });
+                        setPendingJoinCode(null);
+                    }
+                }}>Join</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

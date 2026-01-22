@@ -216,7 +216,13 @@ export function useConversations(userId: string | undefined) {
 
     const { data: conv, error: convError } = await supabase
       .from("conversations")
-      .select("*")
+      .select(`
+        *,
+        members:conversation_members (
+          *,
+          profile:profiles (*)
+        )
+      `)
       .eq("id", result.conversation_id)
       .single();
     

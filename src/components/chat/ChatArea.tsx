@@ -58,6 +58,7 @@ import { useTranscription } from "@/hooks/useTranscription";
 import { ParticipantAudio } from "@/components/chat/ParticipantAudio";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { OnlineStatus } from "@/components/chat/OnlineStatus";
+import { SendInviteDialog } from "@/components/chat/SendInviteDialog";
 import { format, isToday, isYesterday } from "date-fns";
 
 interface ChatAreaProps {
@@ -86,6 +87,7 @@ interface ChatAreaProps {
   onSwitchDevice: (deviceId: string) => void;
   joinRoom: (deviceId?: string, overrideConversationId?: string) => Promise<void>;
   onAddMember: (conversationId: string, username: string) => Promise<void>;
+  onJoinRequest?: (code: string) => void;
 }
 
 export function ChatArea({
@@ -113,6 +115,7 @@ export function ChatArea({
   onSwitchDevice,
   joinRoom,
   onAddMember,
+  onJoinRequest,
 }: ChatAreaProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -122,7 +125,13 @@ export function ChatArea({
   const [newMemberUsername, setNewMemberUsername] = useState("");
   const [addingMember, setAddingMember] = useState(false);
   
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  
   // Removed local useVoiceRoom hook to use parent state
+
+
+  // ... (existing code, keeping `const { current: liveTranscript...` line)
+
 
   const { current: liveTranscript, isFinal: liveIsFinal, supported: transcriptionSupported } = useTranscription(inAudioRoom);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -276,6 +285,37 @@ export function ChatArea({
     const showFile = (msg.message_type !== "text" && msg.file_url) || msg.message_type === "system";
     const senderName = getSenderName(msg.sender);
 
+    const isSystemLog = msg.message_type === "system" && (() => {
+        try {
+            const data = JSON.parse(msg.content || "{}");
+            return data.type === 'system_log';
+        } catch (e) { return false; }
+    })();
+
+    if (isSystemLog) {
+        try {
+            const data = JSON.parse(msg.content || "{}");
+            let text = "";
+            if (data.action === 'joined_group') text = "joined the room";
+            if (data.action === 'left_conversation') text = "left the conversation";
+            if (data.action === 'added_member') text = `added ${data.targetName}`;
+            
+            const senderMember = conversation.members.find(m => m.user_id === msg.sender_id);
+            const senderName = isOwn ? "You" : getSenderName(senderMember?.profile);
+            const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            return (
+                <div key={msg.id} className="flex flex-col items-center justify-center my-4 w-full">
+                    <div className="bg-secondary/30 backdrop-blur-sm px-4 py-1.5 rounded-full border border-border/50">
+                        <p className="text-[11px] font-medium text-muted-foreground text-center">
+                            <span className="text-foreground">{senderName}</span> {text} · {time}
+                        </p>
+                    </div>
+                </div>
+            );
+        } catch (e) { /* fallback to normal rendering if JSON parse fails */ }
+    }
+
     return (
       <div
         key={msg.id}
@@ -299,7 +339,7 @@ export function ChatArea({
             className={`
               relative px-3 py-2 rounded-xl shadow-sm transition-all duration-200 group
               ${isOwn 
-                ? "bg-primary text-primary-foreground rounded-br-sm" 
+                ? "bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-br-sm" 
                 : "bg-secondary/80 text-foreground rounded-bl-sm backdrop-blur-sm"
               }
               hover:shadow-md
@@ -366,37 +406,45 @@ export function ChatArea({
                                 </div>
                             );
                         }
-                        if (data.type === 'system_log') {
-                            let text = "";
-                            if (data.action === 'joined_group') text = "joined the room";
-                            if (data.action === 'left_conversation') text = "left the conversation";
-                            if (data.action === 'added_member') text = `added ${data.targetName}`;
-                            
-                            if (data.action === 'added_member') text = `added ${data.targetName}`;
-                            
-                            const senderMember = conversation.members.find(m => m.user_id === msg.sender_id);
-                            const senderName = isOwn ? "You" : getSenderName(senderMember?.profile);
-                            
-                            // Format time
-                            const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                            return (
-                                <div className="flex flex-col items-center justify-center gap-0.5 py-1 min-w-[200px] text-center">
-                                    <span className="text-xs italic text-muted-foreground">
-                                       {senderName} {text}
-                                    </span>
-                                    <span className="text-[10px] text-muted-foreground/70">
-                                        {time}
-                                    </span>
-                                </div>
-                            );
-                        }
                     } catch (e) {}
                     return <p className="text-sm font-medium italic text-center opacity-80">{msg.content}</p>;
                 })()}
               </div>
             ) : (
-              <p className="text-sm whitespace-pre-wrap break-words leading-snug pr-4">{msg.content}</p>
+              <p className="text-sm whitespace-pre-wrap break-words leading-snug pr-4">
+                {msg.content?.split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
+                  part.match(/https?:\/\/[^\s]+/) ? (
+                    <a 
+                      key={i} 
+                      href={part} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-primary underline hover:opacity-80 break-all"
+                      onClick={(e) => {
+                        try {
+                           const url = new URL(part);
+                           const code = url.searchParams.get('joinCode');
+                           const isSameOrigin = url.origin === window.location.origin;
+           
+                           if (isSameOrigin && code && onJoinRequest) {
+                               e.preventDefault();
+                               e.stopPropagation();
+                               onJoinRequest(code);
+                           } else {
+                               e.stopPropagation();
+                           }
+                        } catch (err) {
+                           e.stopPropagation();
+                        }
+                      }} 
+                    >
+                      {part}
+                    </a>
+                  ) : (
+                    part
+                  )
+                )}
+              </p>
             )}
 
             {/* Overlay Actions */}
@@ -727,6 +775,10 @@ export function ChatArea({
                     <Copy className="h-4 w-4" />
                     <span>Copy Invite Link</span>
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setInviteDialogOpen(true)} className="gap-2 cursor-pointer">
+                    <Send className="h-4 w-4" />
+                    <span>Send Invite</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setAddMemberOpen(true)} className="gap-2 cursor-pointer">
                     <UserPlus className="h-4 w-4" />
                     <span>Add Member</span>
@@ -752,6 +804,15 @@ export function ChatArea({
           </DropdownMenu>
         </div>
       </div>
+
+      <SendInviteDialog 
+        open={inviteDialogOpen} 
+        onOpenChange={setInviteDialogOpen}
+        inviteCode={conversation.invite_code || ""}
+        currentRoomId={conversation.id}
+        currentRoomName={getConversationTitle()}
+        senderId={profile.user_id}
+      />
 
       {/* Audio Room Indicator */}
       {/* Audio Room Indicator */}

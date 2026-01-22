@@ -34,6 +34,14 @@ import {
 import type { Profile } from "@/lib/supabase";
 import type { ConversationWithDetails } from "@/hooks/useConversations";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
@@ -388,21 +396,71 @@ export function Sidebar({
 
       {/* User Profile - Fixed at bottom */}
       <div className="flex-none p-2 border-t border-sidebar-border bg-sidebar-accent/30 z-10">
-        <div className="flex items-center gap-2 px-1">
-          <div className="relative">
-            <Avatar className="h-8 w-8 ring-1 ring-primary/20">
-              <AvatarImage src={profile.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                {getInitials(getDisplayName(profile))}
-              </AvatarFallback>
-            </Avatar>
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[hsl(var(--online))] rounded-full ring-2 ring-sidebar" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate leading-tight">{getDisplayName(profile)}</p>
-            <p className="text-[10px] text-muted-foreground font-mono leading-tight">@{profile.username}</p>
-          </div>
-        </div>
+        <Drawer>
+          <DrawerTrigger asChild>
+            <div className="flex items-center gap-2 px-1 cursor-pointer hover:bg-sidebar-accent/50 rounded-lg p-2 transition-colors">
+              <div className="relative">
+                <Avatar className="h-8 w-8 ring-1 ring-primary/20">
+                  <AvatarImage src={profile.avatar_url || undefined} />
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                    {getInitials(getDisplayName(profile))}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[hsl(var(--online))] rounded-full ring-2 ring-sidebar" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate leading-tight">{getDisplayName(profile)}</p>
+                <p className="text-[10px] text-muted-foreground font-mono leading-tight">@{profile.username}</p>
+              </div>
+            </div>
+          </DrawerTrigger>
+          <DrawerContent>
+            <div className="mx-auto w-full max-w-sm">
+              <DrawerHeader className="pb-6">
+                <div className="flex flex-col items-center justify-center text-center pt-4">
+                  <div className="relative mb-4">
+                    <Avatar className="h-20 w-20 ring-4 ring-primary/10 shadow-xl transition-transform hover:scale-105">
+                      <AvatarImage src={profile.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/10 text-primary text-2xl font-bold">
+                        {getInitials(getDisplayName(profile))}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="absolute bottom-1 right-1 w-4 h-4 bg-[hsl(var(--online))] rounded-full ring-2 ring-background shadow-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <DrawerTitle className="text-2xl font-bold tracking-tight text-foreground">
+                      {getDisplayName(profile)}
+                    </DrawerTitle>
+                    <button 
+                      onClick={handleCopyUsername}
+                      className={`
+                        group flex items-center justify-center gap-2 px-3 py-1.5 rounded-full mx-auto transition-all duration-300
+                        ${copied ? "bg-success/10 text-success border border-success/20" : "bg-secondary/30 text-muted-foreground hover:bg-secondary/50 border border-transparent"}
+                      `}
+                    >
+                      <span className="text-sm font-mono font-medium">@{profile.username}</span>
+                      {copied ? (
+                        <Check className="h-3.5 w-3.5 animate-in zoom-in duration-300" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </DrawerHeader>
+              <div className="p-4 pt-0 pb-8 flex flex-col items-center">
+                <Button 
+                   variant="ghost" 
+                   className="w-full justify-center h-11 text-sm gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors" 
+                   onClick={onSignOut}
+                >
+                  <LogOut className="h-4.5 w-4.5" />
+                  Sign Out
+                </Button>
+              </div>
+            </div>
+          </DrawerContent>
+        </Drawer>
       </div>
     </div>
   );
