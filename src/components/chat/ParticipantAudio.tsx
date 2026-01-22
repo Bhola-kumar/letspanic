@@ -49,7 +49,7 @@ export function ParticipantAudio({ stream, userId, outputDeviceId, showUI = fals
         // Try to use a shared/global AudioContext (created when user joined/accepted)
         try {
           const g = (window as any).__letspanicAudioContext as AudioContext | undefined;
-          const ctx = g || audioContextRef.current;
+          const ctx = (g && g.state !== 'closed') ? g : audioContextRef.current;
           if (ctx && stream) {
             if (!audioContextRef.current) audioContextRef.current = ctx;
             if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
@@ -108,7 +108,7 @@ export function ParticipantAudio({ stream, userId, outputDeviceId, showUI = fals
         // resume AudioContext on user gesture to satisfy autoplay policies
         try {
           const g = (window as any).__letspanicAudioContext as AudioContext | undefined;
-          if (g) {
+          if (g && g.state !== 'closed') {
             audioContextRef.current = g;
           } else if (!audioContextRef.current) {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();

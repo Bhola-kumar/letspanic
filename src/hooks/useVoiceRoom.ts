@@ -63,6 +63,19 @@ export function useVoiceRoom(conversationId: string | null, userId: string | und
       try { supabase.removeChannel(channelRef.current); } catch (e) { console.warn(e); }
       channelRef.current = null;
     }
+    // Close any shared AudioContext created during joins
+    try {
+      const g = (window as any).__letspanicAudioContext as AudioContext | undefined;
+      if (g) {
+        if (g.state !== 'closed') {
+          g.close().catch((e: any) => console.warn('Error closing shared AudioContext', e));
+        }
+        try { delete (window as any).__letspanicAudioContext; } catch (e) { (window as any).__letspanicAudioContext = undefined; }
+        console.log('Shared AudioContext closed and cleared');
+      }
+    } catch (e) {
+      console.warn('Error during shared AudioContext shutdown', e);
+    }
     
     // Only reset inAudioRoom if we are fully cleaning up (not just switching)
     // But cleanup is called on unmount too.
