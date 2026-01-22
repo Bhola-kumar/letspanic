@@ -55,11 +55,11 @@ const Index = () => {
   // Sync call state with voice room
   useEffect(() => {
     if (callState === 'connected') {
-      joinRoom();
+      joinRoom(undefined, callData?.roomId);
     } else if (callState === 'idle' || callState === 'ending') {
       leaveRoom();
     }
-  }, [callState, joinRoom, leaveRoom]);
+  }, [callState, joinRoom, leaveRoom, callData?.roomId]);
 
   const {
     conversations,
