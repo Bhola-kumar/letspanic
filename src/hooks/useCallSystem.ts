@@ -8,6 +8,7 @@ export type CallState = 'idle' | 'outgoing' | 'incoming' | 'connected' | 'ending
 
 export interface CallData {
   conversationId: string;
+  roomId: string; // Unique ID for the voice session (isolated from conversation/group ID)
   otherUser: Profile; // The person you are calling OR function calling you
   isInitiator: boolean;
 }
@@ -146,6 +147,7 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
         if (callerProfile) {
           setCallData({
             conversationId: payload.conversation_id,
+            roomId: payload.room_id || payload.conversation_id, // Fallback for backward compat
             otherUser: callerProfile as Profile,
             isInitiator: false,
           });
@@ -201,8 +203,11 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
   const initiateCall = async (conversationId: string, targetUser: Profile) => {
     if (!userId || !userProfile) return;
     
+    const roomId = crypto.randomUUID();
+
     setCallData({
       conversationId,
+      roomId,
       otherUser: targetUser,
       isInitiator: true,
     });
@@ -219,6 +224,7 @@ export function useCallSystem(userId: string | undefined, userProfile: Profile |
               event: 'invite',
               payload: {
                 conversation_id: conversationId,
+                room_id: roomId,
                 caller_id: userId,
               },
             });

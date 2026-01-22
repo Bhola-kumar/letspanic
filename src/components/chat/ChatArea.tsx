@@ -354,6 +354,7 @@ export function ChatArea({
                                              'Voice Call'}
                                         </span>
                                         <div className="flex items-center gap-2">
+
                                             {data.duration && (
                                                 <span className="text-xs opacity-80">{data.duration}</span>
                                             )}
@@ -684,6 +685,16 @@ export function ChatArea({
                         )}
                       </p>
                       <div className="flex items-center gap-2">
+                        {member.user_id !== currentUserId && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6" 
+                            onClick={() => member.profile && onInitiateCall(conversation.id, member.profile)}
+                          >
+                            <Phone className="h-3 w-3" />
+                          </Button>
+                        )}
                         <span className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-secondary rounded">
                           {member.role}
                         </span>

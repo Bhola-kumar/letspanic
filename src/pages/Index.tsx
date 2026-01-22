@@ -48,7 +48,7 @@ const Index = () => {
     selectedOutput,
     switchDevice,
     switchOutput 
-  } = useVoiceRoom(callData?.conversationId || null, user?.id);
+  } = useVoiceRoom(callData?.roomId || null, user?.id);
 
   usePresence(user?.id);
 
